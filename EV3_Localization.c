@@ -225,7 +225,32 @@ int find_street(void)
   * 
   * You can use the return value to indicate success or failure, or to inform the rest of your code of the state of your
   * bot after calling this function
-  */   
+  */ 
+
+ /*
+  * Idea: 
+  * 1. move forward by driving with both motors
+  * 2. continuously read the sensor
+  * 3. If red is detected:
+  *  - stop the motors
+  *  - turn right by 90 degrees (just assume, we can change this if there's a better angle)
+  *  - drive motors forward
+  *  - if red is detected, repeat Step 3 again.
+  * 4. If black is detected:
+  *  - stop the motors
+  *  - return 0
+  * 5. If yellow is detected:
+  *  - stop the motors
+  *  - return 1 (will use 1 to indicate this is an intersection).
+  * 6. (Implement a timeout to prevent infinite loop in case the street cannot be found, in this case return -1?)
+  * 
+  * Note: 
+  * - could take the average of multiple sensor readings to reduce noise
+  * - Still not sure what to return. We probably can return the state of the robot instead of -1,0,1.
+  * - since we are not on the sreet yet, do we really need to have pid control here?
+  */  
+
+
   return(0);
 }
 
@@ -242,6 +267,25 @@ int drive_along_street(void)
   * You can use the return value to indicate success or failure, or to inform the rest of your code of the state of your
   * bot after calling this function.
   */   
+
+ /*
+  * Idea:
+  * 1. implement a PID controller to move forward by driving with both motors at a moderate speed
+  * 2. continuously read the sensor
+  * 3. If yellow is detected at the agnle around 90 degrees:
+  *  - stop the motors
+  *  - return 0
+  * 4. If red is detected at the agnle around 90 degrees:
+  *  - stop the motors
+  *  - turn 180 degrees
+  *  - drive motors forward
+  * (not sure if it will be an infinite loop)
+  * 5. If black is detected at the agnle around 90 degrees:
+  *  - keep moving forward
+  * 
+  * Similarly, I'm thinking of implementing a timeout to prevent infinite loop.
+  */
+
   return(0);
 }
 
@@ -275,6 +319,21 @@ int scan_intersection(int *tl, int *tr, int *br, int *bl)
    *   TO DO  -   Complete this function
    ***********************************************************************************************************************/
 
+  /*
+   * Idea: 
+   * 0. this functions is called once the color sensor detects yellow.  
+   * 1. determine which building we are scanning by determining the robot's direction.
+   *  - (keep track of the direction using a global var?)
+   * 2. use color sensor to scan all dergees. Record the two sensored building color.
+   * 3. move forward a little bit. During the moving, the robot will scan black near degree 0 and 180, yellow near 90 degree.
+   * 4. if black no longer detected near 0 and 180 and black is detected near 90 degree:
+   *  - stop the motors
+   *  - use color sensor to scan all dergees. Record the two sensored building color. 
+   *  - poll to deal with noise. return -1 if multiple readings all cannot align.
+   * 5. return 0 (success)
+   * 6. (Implement a timeout to prevent infinite loop in case the street cannot be found, in this case return -1?)
+   */
+
  // Return invalid colour values, and a zero to indicate failure (you will replace this with your code)
  *(tl)=-1;
  *(tr)=-1;
@@ -296,6 +355,22 @@ int turn_at_intersection(int turn_direction)
   * and on a street it can follow. 
   * 
   * You can use the return value to indicate success or failure, or to inform your code of the state of the bot
+  */
+
+ /*
+  * After scan_intersection, the color sensor cannot see any yellow.
+  * Idea:
+  * 1. if turn_direction=0:
+  *  - move a bit forward. This depends on the size of the robot.
+  *  - stop motors
+  *  - turn right by 90 degrees
+  *   - left motor forward, right motor backward
+  *  - use color sensor to check if the robot is on the street
+  *   - return 0 is black is detected in the expected range of angle
+  *   - If not, call helper function to adjust the robot's position. (`adjust_robot_pos`?). return 0 if successful.
+  *   - return -1 if timeout.
+  * 
+  * 2. if turn_direction=1: symmetrical to the above.
   */
   return(0);
 }
@@ -379,6 +454,24 @@ int go_to_target(int robot_x, int robot_y, int direction, int target_x, int targ
   * 
   * Return values: 1 if successful (the bot reached its target destination), 0 otherwise
   */   
+
+ /*
+  * Idea:
+  * 1. if robot_x==target_x and robot_y==target_y stop motors and return 0
+  * 2. if not at target location
+  *  - helper `plan_next_move` to determine the next move
+  *  - helper `update_robot_pos_dir` to update the robot's position and direction
+  *  - pseudo code:
+  *    int direction = plan_next_move(robot_x, robot_y, direction, target_x, target_y)
+  *    while(robot_x != target_x || robot_y != target_y)
+  *     drive_along_street()
+  *     scan_intersection()
+  *     if we need to turn then turn_at_intersection()
+  *     update_robot_pos_dir()
+  *     if robot_x==target_x and robot_y==target_y stop motors and return 0
+  *     next direction = plan_next_move(robot_x, robot_y, direction, target_x, target_y)
+  *    return 0
+  */
 
   /************************************************************************************************************************
    *   TO DO  -   Complete this function
