@@ -117,7 +117,17 @@ int main(int argc, char *argv[])
 
  if (dest_x==-1&&dest_y==-1)
  {
+  if (BT_open(HEXKEY)!=0)
+  {
+    fprintf(stderr,"Unable to open comm socket to the EV3, make sure the EV3 kit is powered on, and that the\n");
+    fprintf(stderr," hex key for the EV3 matches the one in EV3_Localization.h\n");
+    exit(1);
+  }
+
   calibrate_sensor();
+  
+  // Cleanup and exit
+  BT_close();
   exit(1);
  }
 
@@ -407,7 +417,88 @@ void calibrate_sensor(void)
   /************************************************************************************************************************
    *   OIPTIONAL TO DO  -   Complete this function
    ***********************************************************************************************************************/
+  int successful, colourFound, R, G, B, A;
+  int correct[10];
+  char confirm = 'n';
+  
   fprintf(stderr,"Calibration function called!\n");  
+
+  remove(CALIBRATION_FILE);
+  FILE *file = fopen(CALIBRATION_FILE, "a");
+
+  /************************** calibrate each colour **************************/
+
+  for (int colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
+  {
+    fprintf(stdout, "\n Getting data on colour: %d\n", colour);
+    fprintf(file, "Colour %d\n", colour);
+
+    // get data as to what the colour looks like
+    for (int i=1; i<=5; i++)
+    {
+      fprintf(stdout, "Round %d/5\n", i);
+      while (confirm != 'y')
+      {
+        fprintf(stdout, "Ready to scan? (y/n) ");
+        scanf("%c", &confirm);
+      }
+      
+      successful = BT_read_colour_RGBraw_NXT(COLOUR_PORT, &R, &G, &B, &A);
+      if (successful == 1)
+      {
+        // Write in format: R G B A
+        fprintf(stdout, "%d %d %d %d\n", R, G, B, A);
+        fprintf(file, "%d %d %d %d\n", R, G, B, A);
+      }
+      else
+      {
+        // try again
+        fprintf(stderr, "Sensor error. Try again.\n");
+        i--;
+      }
+
+      confirm = 'n';
+    }
+  }
+
+  fclose(file);
+
+  // TODO: learning for classifying colours
+
+  // for (int colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
+  // {
+  //   fprintf(stdout, "\n Checking accuracy of getting colour: %d\n", colour);
+
+    // for (int i=0; i<10; i++)
+    // {
+    //   fprintf(stdout, "Round %d\n", i);
+    //   while (tolower(confirm) != 'y')
+    //   {
+    //     fprintf(stdout, "Ready to scan? (y/n) ");
+    //     scanf("%c", &confirm);
+    //   }
+      
+    //   successful = BT_read_colour_RGBraw_NXT(COLOUR_PORT, &R, &G, &B, &A);
+    //   if (successful == 1)
+    //   {
+    //     // determine the colour it is closest to
+    //     colourFound = 1;  // TODO : get colour based off of classification
+
+    //     fprintf(stdout, "The colour found: %d\n", colourFound);
+        
+    //     correct[i] = (colour == colourFound);
+    //   }
+    //   else
+    //   {
+    //     // try again
+    //     fprintf(stderr, "Sensor error. Try again.\n");
+    //     i--;
+    //   }
+
+    //   confirm = 'n';
+    // }
+
+  // }    
 }
 
 int parse_map(unsigned char *map_img, int rx, int ry)
