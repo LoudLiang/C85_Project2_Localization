@@ -87,6 +87,7 @@ code that you have to complete in order to implement the localization algorithms
 */
 
 #define CALIBRATION_FILE "calibration.txt"
+#define DATA_PTS_PER_COLOUR 5
 
 int parse_map(unsigned char *map_img, int rx, int ry);
 int robot_localization(int *robot_x, int *robot_y, int *direction);

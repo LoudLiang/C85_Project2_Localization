@@ -396,6 +396,38 @@ int go_to_target(int robot_x, int robot_y, int direction, int target_x, int targ
   return(0);  
 }
 
+int* learning_colour_sensor(void)
+{
+  int colourRead, r, g, b, a;
+  int* colours_array = NULL;
+
+  colours_array = calloc(6, 4*DATA_PTS_PER_COLOUR*sizeof(int));
+
+  // read the data file
+  File *file = fopen(CALIBRATION_FILE, "r");
+
+  for (int colour=BLACKCOLOR; colour<WHITECOLOR; colour++)
+  {
+    fscanf(file, "Colour %d", &colourRead)
+
+    for (int i=0; i<DATA_PTS_PER_COLOUR; i++)
+    {
+      fscanf(file, "%d %d %d %d", &r, &g, &b, &a);
+      
+      colours_array[colour-1][i][0] = r;
+      colours_array[colour-1][i][1] = b;
+      colours_array[colour-1][i][2] = g;
+      colours_array[colour-1][i][3] = a;
+    }
+  }
+   
+  fclose(file);
+
+  
+
+  return colours_array;
+}
+
 void calibrate_sensor(void)
 {
  /*
@@ -434,7 +466,7 @@ void calibrate_sensor(void)
     fprintf(file, "Colour %d\n", colour);
 
     // get data as to what the colour looks like
-    for (int i=1; i<=5; i++)
+    for (int i=1; i<=DATA_PTS_PER_COLOUR; i++)
     {
       fprintf(stdout, "Round %d/5\n", i);
       while (confirm != 'y')
@@ -463,42 +495,44 @@ void calibrate_sensor(void)
 
   fclose(file);
 
-  // TODO: learning for classifying colours
+  int* colours_array = learning_colour_sensor();
 
-  // for (int colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
-  // {
-  //   fprintf(stdout, "\n Checking accuracy of getting colour: %d\n", colour);
+  for (int colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
+  {
+    fprintf(stdout, "\n Checking accuracy of getting colour: %d\n", colour);
 
-    // for (int i=0; i<10; i++)
-    // {
-    //   fprintf(stdout, "Round %d\n", i);
-    //   while (tolower(confirm) != 'y')
-    //   {
-    //     fprintf(stdout, "Ready to scan? (y/n) ");
-    //     scanf("%c", &confirm);
-    //   }
+    for (int i=0; i<10; i++)
+    {
+      fprintf(stdout, "Round %d\n", i);
+      while (tolower(confirm) != 'y')                                                                           
+
+      {
+        fprintf(stdout, "Ready to scan? (y/n) ");
+        scanf("%c", &confirm);
+      }
       
-    //   successful = BT_read_colour_RGBraw_NXT(COLOUR_PORT, &R, &G, &B, &A);
-    //   if (successful == 1)
-    //   {
-    //     // determine the colour it is closest to
-    //     colourFound = 1;  // TODO : get colour based off of classification
+      successful = BT_read_colour_RGBraw_NXT(COLOUR_PORT, &R, &G, &B, &A);
+      if (successful == 1)
+      {
+        // determine the colour it is closest to
+        colourFound = 1;  // TODO : get colour based off of classification
 
-    //     fprintf(stdout, "The colour found: %d\n", colourFound);
+        fprintf(stdout, "The colour found: %d\n", colourFound);
         
-    //     correct[i] = (colour == colourFound);
-    //   }
-    //   else
-    //   {
-    //     // try again
-    //     fprintf(stderr, "Sensor error. Try again.\n");
-    //     i--;
-    //   }
+        correct[i] = (colour == colourFound);
+      }
+      else
+      {
+        // try again
+        fprintf(stderr, "Sensor error. Try again.\n");
+        i--;
+      }
 
-    //   confirm = 'n';
-    // }
+      confirm = 'n';
+    }
+  } 
 
-  // }    
+  free(colours_array);
 }
 
 int parse_map(unsigned char *map_img, int rx, int ry)
