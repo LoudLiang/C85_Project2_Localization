@@ -791,3 +791,7 @@ unsigned char *readPPMimage(const char *filename, int *rx, int *ry)
 
  return(im);    
 }
+
+void PID_Init(PIDController *pid) {
+
+}

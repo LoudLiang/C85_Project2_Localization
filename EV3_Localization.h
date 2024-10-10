@@ -72,6 +72,17 @@ code that you have to complete in order to implement the localization algorithms
 	#define HEXKEY "00:16:53:56:55:D9"	// <--- SET UP YOUR EV3's HEX ID here
 #endif
 
+typedef struct {
+  double Kp;
+  double Ki;
+  double Kd;
+
+  double integrator;
+  double differentiator;
+  double prev_error;
+  double prev_measurement;
+} PIDController;
+
 int parse_map(unsigned char *map_img, int rx, int ry);
 int robot_localization(int *robot_x, int *robot_y, int *direction);
 int go_to_target(int robot_x, int robot_y, int direction, int target_x, int target_y);
