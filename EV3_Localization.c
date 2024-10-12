@@ -117,17 +117,17 @@ int main(int argc, char *argv[])
 
  if (dest_x==-1&&dest_y==-1)
  {
-  if (BT_open(HEXKEY)!=0)
-  {
-    fprintf(stderr,"Unable to open comm socket to the EV3, make sure the EV3 kit is powered on, and that the\n");
-    fprintf(stderr," hex key for the EV3 matches the one in EV3_Localization.h\n");
-    exit(1);
-  }
+  // if (BT_open(HEXKEY)!=0)
+  // {
+  //   fprintf(stderr,"Unable to open comm socket to the EV3, make sure the EV3 kit is powered on, and that the\n");
+  //   fprintf(stderr," hex key for the EV3 matches the one in EV3_Localization.h\n");
+  //   exit(1);
+  // }
 
   calibrate_sensor();
   
   // Cleanup and exit
-  BT_close();
+  // BT_close();
   exit(1);
  }
 
@@ -396,36 +396,51 @@ int go_to_target(int robot_x, int robot_y, int direction, int target_x, int targ
   return(0);  
 }
 
+/*
+  * Returns a pointer to a datapoint in coloursArray s.t.
+  *
+  *         *(p) = r, *(p+1) = g , *(p+2) = b 
+  * 
+  * e.g. get_colour_dataPoint(coloursArray, BLACKCOLOR, 1)
+  *      returns a pointer to the rgb value of the 1st data point
+  *      for the BLACKCOLOR
+  */
+int* get_colour_dataPoint(int*coloursArray, int colour, int dataPoint)
+{
+  colour--;
+  return (coloursArray + (colour * DATA_PTS_PER_COLOUR * 3) + (dataPoint * 3));
+}
+
 int* learning_colour_sensor(void)
 {
-  int colourRead, r, g, b, a;
-  int* colours_array = NULL;
+  FILE *file;
+  int colour, colourRead, r, g, b;
+  int *coloursArray, *dataPoint;
+  char colourStr[8];
 
-  colours_array = calloc(6, 4*DATA_PTS_PER_COLOUR*sizeof(int));
+  coloursArray = (int*)calloc(6, 3*DATA_PTS_PER_COLOUR*sizeof(int));
 
   // read the data file
-  File *file = fopen(CALIBRATION_FILE, "r");
+  file = fopen(CALIBRATION_FILE, "r");
 
-  for (int colour=BLACKCOLOR; colour<WHITECOLOR; colour++)
+  for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
   {
-    fscanf(file, "Colour %d", &colourRead)
+    fscanf(file, "%s %d", colourStr, &colourRead);
 
     for (int i=0; i<DATA_PTS_PER_COLOUR; i++)
     {
-      fscanf(file, "%d %d %d %d", &r, &g, &b, &a);
-      
-      colours_array[colour-1][i][0] = r;
-      colours_array[colour-1][i][1] = b;
-      colours_array[colour-1][i][2] = g;
-      colours_array[colour-1][i][3] = a;
+      fscanf(file, "%d %d %d", &r, &g, &b);
+
+      dataPoint = get_colour_dataPoint(coloursArray, colour, i);
+      *dataPoint = r;
+      *(dataPoint+1) = g;
+      *(dataPoint+2) = b;
     }
   }
    
   fclose(file);
 
-  
-
-  return colours_array;
+  return coloursArray;
 }
 
 void calibrate_sensor(void)
@@ -449,90 +464,103 @@ void calibrate_sensor(void)
   /************************************************************************************************************************
    *   OIPTIONAL TO DO  -   Complete this function
    ***********************************************************************************************************************/
-  int successful, colourFound, R, G, B, A;
+  FILE *file;
+  int successful, colour, colourFound, R, G, B, A, sumR, sumG, sumB;
+  int *coloursArray;
   int correct[10];
   char confirm = 'n';
   
   fprintf(stderr,"Calibration function called!\n");  
 
-  remove(CALIBRATION_FILE);
-  FILE *file = fopen(CALIBRATION_FILE, "a");
+  // remove(CALIBRATION_FILE);
+  // file = fopen(CALIBRATION_FILE, "a");
 
-  /************************** calibrate each colour **************************/
+  // /************************** calibrate each colour **************************/
 
-  for (int colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
-  {
-    fprintf(stdout, "\n Getting data on colour: %d\n", colour);
-    fprintf(file, "Colour %d\n", colour);
+  // for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
+  // {
+  //   fprintf(stdout, "\n Getting data on colour: %d\n", colour);
+  //   fprintf(file, "Colour %d\n", colour);
 
-    // get data as to what the colour looks like
-    for (int i=1; i<=DATA_PTS_PER_COLOUR; i++)
-    {
-      fprintf(stdout, "Round %d/5\n", i);
-      while (confirm != 'y')
-      {
-        fprintf(stdout, "Ready to scan? (y/n) ");
-        scanf("%c", &confirm);
-      }
+  //   // get data as to what the colour looks like
+  //   for (int i=1; i<=DATA_PTS_PER_COLOUR; i++)
+  //   {
+  //     fprintf(stdout, "Round %d/5\n", i);
+  //     while (confirm != 'y')
+  //     {
+  //       fprintf(stdout, "Ready to scan? (y/n) ");
+  //       scanf("%c", &confirm);
+  //     }
       
-      successful = BT_read_colour_RGBraw_NXT(COLOUR_PORT, &R, &G, &B, &A);
-      if (successful == 1)
-      {
-        // Write in format: R G B A
-        fprintf(stdout, "%d %d %d %d\n", R, G, B, A);
-        fprintf(file, "%d %d %d %d\n", R, G, B, A);
-      }
-      else
-      {
-        // try again
-        fprintf(stderr, "Sensor error. Try again.\n");
-        i--;
-      }
+  //     for (int j=0; j<READS_PER_DATA_PT; j++)
+  //     {
+  //       successful = BT_read_colour_RGBraw_NXT(COLOUR_PORT, &R, &G, &B, &A);
+  //       if (successful == 1)
+  //       {
+  //         sumR += R;
+  //         sumG += G;
+  //         sumB += B;
+  //       }
+  //       else
+  //       {
+  //         // try again
+  //         fprintf(stderr, "Sensor error. Try again.\n");
+  //         j--;
+  //       }
+  //     }
 
-      confirm = 'n';
-    }
-  }
+  //     R = sumR/READS_PER_DATA_PT;
+  //     G = sumG/READS_PER_DATA_PT;
+  //     B = sumB/READS_PER_DATA_PT;
 
-  fclose(file);
+  //     // Write in format: R G B A
+  //     fprintf(stdout, "%d %d %d\n", R, G, B);
+  //     fprintf(file, "%d %d %d\n", R, G, B);
 
-  int* colours_array = learning_colour_sensor();
+  //     confirm = 'n';
+  //   }
+  // }
 
-  for (int colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
-  {
-    fprintf(stdout, "\n Checking accuracy of getting colour: %d\n", colour);
+  // fclose(file);
 
-    for (int i=0; i<10; i++)
-    {
-      fprintf(stdout, "Round %d\n", i);
-      while (tolower(confirm) != 'y')                                                                           
+  coloursArray = learning_colour_sensor();
 
-      {
-        fprintf(stdout, "Ready to scan? (y/n) ");
-        scanf("%c", &confirm);
-      }
+  // for (int colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
+  // {
+  //   fprintf(stdout, "\n Checking accuracy of getting colour: %d\n", colour);
+
+  //   for (int i=0; i<10; i++)
+  //   {
+  //     fprintf(stdout, "Round %d\n", i);
+  //     while (tolower(confirm) != 'y')                                                                           
+
+  //     {
+  //       fprintf(stdout, "Ready to scan? (y/n) ");
+  //       scanf("%c", &confirm);
+  //     }
       
-      successful = BT_read_colour_RGBraw_NXT(COLOUR_PORT, &R, &G, &B, &A);
-      if (successful == 1)
-      {
-        // determine the colour it is closest to
-        colourFound = 1;  // TODO : get colour based off of classification
+  //     successful = BT_read_colour_RGBraw_NXT(COLOUR_PORT, &R, &G, &B, &A);
+  //     if (successful == 1)
+  //     {
+  //       // determine the colour it is closest to
+  //       colourFound = 1;  // TODO : get colour based off of classification
 
-        fprintf(stdout, "The colour found: %d\n", colourFound);
+  //       fprintf(stdout, "The colour found: %d\n", colourFound);
         
-        correct[i] = (colour == colourFound);
-      }
-      else
-      {
-        // try again
-        fprintf(stderr, "Sensor error. Try again.\n");
-        i--;
-      }
+  //       correct[i] = (colour == colourFound);
+  //     }
+  //     else
+  //     {
+  //       // try again
+  //       fprintf(stderr, "Sensor error. Try again.\n");
+  //       i--;
+  //     }
 
-      confirm = 'n';
-    }
-  } 
+  //     confirm = 'n';
+  //   }
+  // } 
 
-  free(colours_array);
+  free(coloursArray);
 }
 
 int parse_map(unsigned char *map_img, int rx, int ry)
