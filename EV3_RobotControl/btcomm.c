@@ -18,7 +18,7 @@
  * ********************************************************************************************************************/
 #include "btcomm.h"
 					     
-//#define __BT_debug			// Uncomment to trigger printing of BT messages for debug purposes
+// #define __BT_debug			// Uncomment to trigger printing of BT messages for debug purposes
 
 // These are required to keep track of messages and help set state
 int message_id_counter=1;		// <-- This is a global message_id counter, used to keep track of
@@ -307,7 +307,8 @@ int BT_motor_port_start(char port_ids, char power)
 #endif  
  
  write(*socket_id,&cmd_string[0],15);
- read(*socket_id,&reply[0],1023);
+//  read(*socket_id,&reply[0],1023);
+// TODO: investigate why reading from socket hangs indefinitely
 
  message_id_counter++;
 
@@ -317,7 +318,7 @@ int BT_motor_port_start(char port_ids, char power)
 #endif
  }
  else{
-  fprintf(stderr,"BT_drive command(): Command failed\n");
+  // fprintf(stderr,"BT_drive command(): Command failed\n");
   return(-1);
  }
  return(0); 
@@ -1373,7 +1374,7 @@ int BT_read_gyro(char sensor_port, int reset, int *angle, int *rate){
    fprintf(stderr,"%02X, ",reply[i]);
   }
   fprintf(stderr,"\n");
-  fprintf(stderr, "angle: %d, rate=%d\n", angle, rate);
+  fprintf(stderr, "angle: %d, rate=%d\n", *angle, *rate);
 #endif
  }
  else{

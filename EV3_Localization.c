@@ -505,7 +505,7 @@ int detect_and_classify_colour(int* coloursArray)
   fprintf(stdout, "%d %d %d\n", R, G, B);
 
   // finds the closest colour
-  closestColour = BLACKCOLOR;
+  closestColour = 0;
   closestDistance = 10000000.0;
   for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
   {
@@ -524,6 +524,86 @@ int detect_and_classify_colour(int* coloursArray)
   }
 
   return closestColour;
+}
+
+/*
+  Scans the colours to the right, center, and left of the bot.
+
+  Writes the right, center, and left colours in coloursDetected 
+  in that order.
+*/
+void scan_colours(int* coloursArray, int coloursDetected[3])
+{
+  int angle, rate, power, prevColour, i;
+  double err, prevErr, diff;
+
+  // rotates gyro all the way to the right
+  BT_motor_port_start(MOTOR_MIDDLE, 100);
+  BT_motor_port_stop(MOTOR_MIDDLE, 0);
+
+  // wait until readings are the same so
+  // we know we're at the end of the stopper (right)
+  prevColour = 1;
+  while (prevColour != coloursDetected[2])
+  {
+    prevColour = coloursDetected[2];
+
+    coloursDetected[2] = detect_and_classify_colour(coloursArray);
+    fprintf(stderr, "colour detected: %d\n", coloursDetected[2]);
+  }
+
+  // reset gyro sensor to 0
+  BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
+  fprintf(stderr, "angle %d rate of change %d\n", angle, rate);
+
+  // rotate all the way to the left
+  BT_motor_port_start(MOTOR_MIDDLE, -80);
+  BT_motor_port_stop(MOTOR_MIDDLE, 0);
+
+  // scan colour (left)
+  prevColour = 1;
+  while (prevColour != coloursDetected[0])
+  {
+    prevColour = coloursDetected[0];
+
+    coloursDetected[0] = detect_and_classify_colour(coloursArray);
+    fprintf(stderr, "colour detected: %d\n", coloursDetected[0]);
+  }
+
+  BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+
+  // rotate until gyro at center
+  err = -75.0 - angle;
+  prevErr = err;
+  diff = 0;
+  while (abs(err) > 10)
+  {
+    power = (int)(50.0 * (err/75.0 + diff/100.0));
+    power = (power > 100) ? 100 : power;
+    power = (power < -100) ? -100 : power;
+
+    BT_motor_port_start(MOTOR_MIDDLE, power);
+    BT_motor_port_stop(MOTOR_MIDDLE, 0);
+
+    BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+
+    prevErr = err;
+    err = -75.0 - angle;
+    diff = err - prevErr;
+  }
+
+  // scan colour (center)
+  prevColour = 1;
+  while (prevColour != coloursDetected[1])
+  {
+    prevColour = coloursDetected[1];
+
+    coloursDetected[1] = detect_and_classify_colour(coloursArray);
+    fprintf(stderr, "colour detected: %d\n", coloursDetected[1]);
+  }
+
+  // reset gyro sensor to 0 since it's in the center
+  BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
 }
 
 void calibrate_sensor(void)
@@ -549,11 +629,11 @@ void calibrate_sensor(void)
    ***********************************************************************************************************************/
   FILE *file;
   int colour, colourFound, R, G, B, i;
-  int *coloursArray;
+  int *coloursArray, coloursDetected[3];
   double correct;
   char confirm = 'n';
   
-  fprintf(stderr,"Calibration function called!\n");  
+  fprintf(stderr,"Calibration function called!\n");
 
   remove(COLOUR_DATA_FILE);
   file = fopen(COLOUR_DATA_FILE, "a");
@@ -562,16 +642,16 @@ void calibrate_sensor(void)
 
   for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
   {
-    fprintf(stdout, "\n Getting data on colour: %d\n", colour);
+    fprintf(stderr, "\n Getting data on colour: %d\n", colour);
     fprintf(file, "Colour %d\n", colour);
 
     // get data as to what the colour looks like
     for (i=1; i<=DATA_PTS_PER_COLOUR; i++)
     {
-      fprintf(stdout, "Round %d/%d\n", i, DATA_PTS_PER_COLOUR);
+      fprintf(stderr, "Round %d/%d\n", i, DATA_PTS_PER_COLOUR);
       while (confirm != 'y')
       {
-        fprintf(stdout, "Ready to scan? (y/n) ");
+        fprintf(stderr, "Ready to scan? (y/n) ");
         scanf("%c", &confirm);
         getchar();
       }
@@ -579,7 +659,7 @@ void calibrate_sensor(void)
       read_colour_sensor(READS_PER_DATA_PT, &R, &G, &B);
 
       // Write in format: R G B A
-      fprintf(stdout, "%d %d %d\n", R, G, B);
+      fprintf(stderr, "%d %d %d\n", R, G, B);
       fprintf(file, "%d %d %d\n", R, G, B);
 
       confirm = 'n';
@@ -597,22 +677,22 @@ void calibrate_sensor(void)
 
   for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
   {
-    fprintf(stdout, "\n Checking accuracy of getting colour: %d\n", colour);
+    fprintf(stderr, "\n Checking accuracy of getting colour: %d\n", colour);
 
     // testing colour classification
     for (i=0; i<10; i++)
     {
-      fprintf(stdout, "Round %d/10\n", i);
+      fprintf(stderr, "Round %d/10\n", i);
       while (tolower(confirm) != 'y')                                                                           
       {
-        fprintf(stdout, "Ready to scan? (y/n) ");
+        fprintf(stderr, "Ready to scan? (y/n) ");
         scanf("%c", &confirm);
         getchar();
       }
       
       colourFound = detect_and_classify_colour(coloursArray);
 
-      fprintf(stdout, "Colour Expected: %d Actual: %d\n", colour, colourFound);
+      fprintf(stderr, "Colour Expected: %d Actual: %d\n", colour, colourFound);
 
       correct += (double)(colour == colourFound);
 
@@ -621,11 +701,18 @@ void calibrate_sensor(void)
 
     // the accuracy of colour classification
     correct = correct/10.0;
-    fprintf(stdout, "Colour %d %.2f\n", colour, correct);
+    fprintf(stderr, "Colour %d %.2f\n", colour, correct);
     fprintf(file, "Colour %d %.2f\n", colour, correct);
   } 
 
   fclose(file);
+
+  /************************** calibrate gyro sensor **************************/
+
+  // moves the gyro sensor to the middle and resets the angle count
+  scan_colours(coloursArray, coloursDetected);
+  for (int j=0; j<3; j++) 
+    printf("colours detected %d %d %d\n", coloursDetected[0], coloursDetected[1], coloursDetected[2]);
 
   free(coloursArray);
 }
