@@ -571,25 +571,31 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
   }
 
   BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+  printf("angle %d\n", angle);
 
   // rotate until gyro at center
   err = -75.0 - angle;
   prevErr = err;
   diff = 0;
-  while (abs(err) > 10)
+  while (abs(err) > 5)
   {
-    power = (int)(50.0 * (err/75.0 + diff/100.0));
+    printf("error %.2f\n", err);
+    power = (int)(60.0 * (err/75.0 + diff/100.0));
     power = (power > 100) ? 100 : power;
     power = (power < -100) ? -100 : power;
+    printf("power %d\n", power);
 
     BT_motor_port_start(MOTOR_MIDDLE, power);
-    BT_motor_port_stop(MOTOR_MIDDLE, 0);
 
     BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
 
     prevErr = err;
     err = -75.0 - angle;
     diff = err - prevErr;
+
+    BT_motor_port_stop(MOTOR_MIDDLE, 0);
+
+    printf("angle %d err %.2f prev err %.2f, diff %.2f\n", angle, err, prevErr, diff);
   }
 
   // scan colour (center)
@@ -635,77 +641,77 @@ void calibrate_sensor(void)
   
   fprintf(stderr,"Calibration function called!\n");
 
-  remove(COLOUR_DATA_FILE);
-  file = fopen(COLOUR_DATA_FILE, "a");
+  // remove(COLOUR_DATA_FILE);
+  // file = fopen(COLOUR_DATA_FILE, "a");
 
-  /************************** get data on each colour **************************/
+  // /************************** get data on each colour **************************/
 
-  for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
-  {
-    fprintf(stderr, "\n Getting data on colour: %d\n", colour);
-    fprintf(file, "Colour %d\n", colour);
+  // for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
+  // {
+  //   fprintf(stderr, "\n Getting data on colour: %d\n", colour);
+  //   fprintf(file, "Colour %d\n", colour);
 
-    // get data as to what the colour looks like
-    for (i=1; i<=DATA_PTS_PER_COLOUR; i++)
-    {
-      fprintf(stderr, "Round %d/%d\n", i, DATA_PTS_PER_COLOUR);
-      while (confirm != 'y')
-      {
-        fprintf(stderr, "Ready to scan? (y/n) ");
-        scanf("%c", &confirm);
-        getchar();
-      }
+  //   // get data as to what the colour looks like
+  //   for (i=1; i<=DATA_PTS_PER_COLOUR; i++)
+  //   {
+  //     fprintf(stderr, "Round %d/%d\n", i, DATA_PTS_PER_COLOUR);
+  //     while (confirm != 'y')
+  //     {
+  //       fprintf(stderr, "Ready to scan? (y/n) ");
+  //       scanf("%c", &confirm);
+  //       getchar();
+  //     }
       
-      read_colour_sensor(READS_PER_DATA_PT, &R, &G, &B);
+  //     read_colour_sensor(READS_PER_DATA_PT, &R, &G, &B);
 
-      // Write in format: R G B A
-      fprintf(stderr, "%d %d %d\n", R, G, B);
-      fprintf(file, "%d %d %d\n", R, G, B);
+  //     // Write in format: R G B A
+  //     fprintf(stderr, "%d %d %d\n", R, G, B);
+  //     fprintf(file, "%d %d %d\n", R, G, B);
 
-      confirm = 'n';
-    }
-  }
+  //     confirm = 'n';
+  //   }
+  // }
 
-  fclose(file);
+  // fclose(file);
 
-  /************************** check accuracy of data on each colour **************************/
+  // /************************** check accuracy of data on each colour **************************/
 
   coloursArray = learning_colour_sensor();
 
-  remove(COLOUR_PROBABILITIES_FILE);
-  file = fopen(COLOUR_PROBABILITIES_FILE, "a");
+  // remove(COLOUR_PROBABILITIES_FILE);
+  // file = fopen(COLOUR_PROBABILITIES_FILE, "a");
 
-  for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
-  {
-    fprintf(stderr, "\n Checking accuracy of getting colour: %d\n", colour);
+  // for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
+  // {
+  //   fprintf(stderr, "\n Checking accuracy of getting colour: %d\n", colour);
 
-    // testing colour classification
-    for (i=0; i<10; i++)
-    {
-      fprintf(stderr, "Round %d/10\n", i);
-      while (tolower(confirm) != 'y')                                                                           
-      {
-        fprintf(stderr, "Ready to scan? (y/n) ");
-        scanf("%c", &confirm);
-        getchar();
-      }
+  //   // testing colour classification
+  //   for (i=0; i<10; i++)
+  //   {
+  //     fprintf(stderr, "Round %d/10\n", i+1);
+  //     while (tolower(confirm) != 'y')                                                                           
+  //     {
+  //       fprintf(stderr, "Ready to scan? (y/n) ");
+  //       scanf("%c", &confirm);
+  //       getchar();
+  //     }
       
-      colourFound = detect_and_classify_colour(coloursArray);
+  //     colourFound = detect_and_classify_colour(coloursArray);
 
-      fprintf(stderr, "Colour Expected: %d Actual: %d\n", colour, colourFound);
+  //     fprintf(stderr, "Colour Expected: %d Actual: %d\n", colour, colourFound);
 
-      correct += (double)(colour == colourFound);
+  //     correct += (double)(colour == colourFound);
 
-      confirm = 'n';
-    }
+  //     confirm = 'n';
+  //   }
 
-    // the accuracy of colour classification
-    correct = correct/10.0;
-    fprintf(stderr, "Colour %d %.2f\n", colour, correct);
-    fprintf(file, "Colour %d %.2f\n", colour, correct);
-  } 
+  //   // the accuracy of colour classification
+  //   correct = correct/10.0;
+  //   fprintf(stderr, "Colour %d %.2f\n", colour, correct);
+  //   fprintf(file, "Colour %d %.2f\n", colour, correct);
+  // } 
 
-  fclose(file);
+  // fclose(file);
 
   /************************** calibrate gyro sensor **************************/
 
