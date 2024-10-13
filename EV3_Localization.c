@@ -94,12 +94,29 @@ int map[400][4];            // This holds the representation of the map, up to 2
 int sx, sy;                 // Size of the map (number of intersections along x and y)
 double beliefs[400][4];     // Beliefs for each location and motion direction
 
+int straight_setpoint = 0;
+int turn_setpoint = 0; // TODO: CHANGE THIS
+
+PIDController *pid_straight;
+PIDController *pid_turn;
+
 int main(int argc, char *argv[])
 {
  char mapname[1024];
  int dest_x, dest_y, rx, ry;
  unsigned char *map_image;
- 
+
+ pid_straight = malloc(sizeof(PIDController));
+ pid_turn = malloc(sizeof(PIDController));
+
+ if (pid_straight == NULL || pid_turn == NULL) {
+  fprintf(stderr, "Failed to allocate memory for PID controllers\n");
+  exit(1);
+ }
+
+ pid_Init(pid_straight);
+ pid_Init(pid_turn);
+
  memset(&map[0][0],0,400*4*sizeof(int));
  sx=0;
  sy=0;
@@ -214,6 +231,8 @@ int main(int argc, char *argv[])
  // Cleanup and exit - DO NOT WRITE ANY CODE BELOW THIS LINE
  BT_close();
  free(map_image);
+ free(pid_straight);
+ free(pid_turn);
  exit(0);
 }
 
@@ -792,6 +811,100 @@ unsigned char *readPPMimage(const char *filename, int *rx, int *ry)
  return(im);    
 }
 
-void PID_Init(PIDController *pid) {
+void pid_Init(PIDController *pid) {
+/* Clear controller variables */
+ pid->Kp = 0.0;
+ pid->Ki = 0.0;
+ pid->Kd = 0.0;
 
+	pid->integrator = 0.0;
+	pid->prevError = 0.0;
+
+	pid->differentiator = 0.0;
+	pid->prevMeasurement = 0.0;
+
+	pid->out = 0.0;
+}
+
+double pid_controller_update(PIDController *pid, int error, int measurement) {
+ double propotional;
+
+ // proportional
+ propotional = pid->Kp * error;
+
+ // integral
+ pid->integrator = pid->integrator + 0.5 * pid->Ki * pid->T * (error + pid->prevError);
+ if (pid->integrator > pid->limMaxInt) {
+  pid->integrator = pid->limMaxInt;
+ } else if (pid->integrator < pid->limMinInt) {
+  pid->integrator = pid->limMinInt;
+ }
+
+ // derivative
+ pid->differentiator = -(2.0 * pid->Kd * (measurement - pid->prevMeasurement) 
+                  + (2.0 * pid->tau - pid->T) * pid->differentiator) 
+                  / (2.0 * pid->tau + pid->T);
+
+ pid->out = propotional + pid->integrator + pid->differentiator;
+ if (pid->out > pid->limMax) {
+  pid->out = pid->limMax;
+ } else if (pid->out < pid->limMin) {
+  pid->out = pid->limMin;
+ }
+
+ pid->prevError = error;
+ pid->prevMeasurement = measurement;
+
+ return pid->out;
+}
+
+
+void move_straight() {
+ // TODO: CHANGE SPEED BASED ON REAL SITUATION
+ double base_speed = 20.0;
+ double max_speed = 80.0;
+ int angle = 0, rate;
+
+ BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
+ BT_drive(MOTOR_LEFT, MOTOR_RIGHT)
+
+ while(1) {
+  // TODO: IMPLEMENT STOP CONDITION: seeing yellow?
+  BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+  int error = angle - straight_setpoint;
+  double pid_out = pid_controller_update(pid_straight, straight_setpoint, angle);
+
+  // TODO: CHANGE ADD/SUBSTRACT OUTPUT BSASED ON REAL SITUATION
+  if (error > 0) {
+   // bit right. Tweaking left.
+   double left_speed = base_speed + pid_out;
+   double right_speed = base_speed - pid_out;
+  }
+
+  // Limit speed
+  if (left_speed > max_speed) {
+   left_speed = max_speed;
+  } else if (left_speed < -max_speed) {
+   left_speed = -max_speed;
+  }
+  if (right_speed > max_speed) {
+   right_speed = max_speed;
+  } else if (right_speed < -max_speed) {
+   right_speed = -max_speed;
+  }
+
+  BT_motor_port_start(motor_left_port, left_speed);
+  BT_motor_port_start(motor_right_port, right_speed);
+
+  left_degree_prev = left_degree_now;
+  right_degree_prev = right_degree_now;
+
+  // Small delay to control loop frequency
+  usleep(10000); 
+ }
+
+}
+
+void turn_robot(double degree) {
+ return 0;
 }

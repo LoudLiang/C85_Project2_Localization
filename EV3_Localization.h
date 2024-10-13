@@ -72,15 +72,36 @@ code that you have to complete in order to implement the localization algorithms
 	#define HEXKEY "00:16:53:56:55:D9"	// <--- SET UP YOUR EV3's HEX ID here
 #endif
 
+#define WHEEL_DIAMETER 56.0		// in mm
+
 typedef struct {
   double Kp;
   double Ki;
   double Kd;
 
-  double integrator;
-  double differentiator;
-  double prev_error;
-  double prev_measurement;
+  /* Derivative low-pass filter time constant */
+  float tau;
+
+  /* Output limits */
+  float limMin;
+	float limMax;
+
+  /* Integrator limits */
+  float limMinInt;
+	float limMaxInt;
+
+  /* Sample time (in seconds) */
+	float T;
+
+  /* Controller "memory" */
+	float integrator;
+	float prevError;			/* Required for integrator */
+	float differentiator;
+	float prevMeasurement;		/* Required for differentiator */
+
+	/* Controller output */
+	float out;
+
 } PIDController;
 
 int parse_map(unsigned char *map_img, int rx, int ry);
@@ -92,5 +113,7 @@ int scan_intersection(int *tl, int *tr, int *br, int *bl);
 int turn_at_intersection(int turn_direction);
 void calibrate_sensor(void);
 unsigned char *readPPMimage(const char *filename, int *rx, int*ry);
-
+void pid_Init(PIDController *pid);
+void move_straight(void);
+void turn_robot(double degree);
 #endif
