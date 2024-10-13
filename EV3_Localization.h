@@ -76,11 +76,11 @@ code that you have to complete in order to implement the localization algorithms
   The ports associated with whatever sensors/motors
 */
 
-#define MOTOR_LEFT   MOTOR_A
-#define MOTOR_RIGHT  MOTOR_D
+#define MOTOR_LEFT   MOTOR_D
+#define MOTOR_RIGHT  MOTOR_A
 #define MOTOR_MIDDLE MOTOR_B
-#define COLOUR_PORT  PORT_1
-#define GYRO_PORT    PORT_2
+#define COLOUR_PORT  PORT_2
+#define GYRO_PORT    PORT_1
 
 /*
   Other Constants
@@ -88,7 +88,7 @@ code that you have to complete in order to implement the localization algorithms
 
 #define CALIBRATION_FILE "calibration.txt"
 #define DATA_PTS_PER_COLOUR 5
-#define READS_PER_DATA_PT 1000
+#define READS_PER_DATA_PT 100
 
 int parse_map(unsigned char *map_img, int rx, int ry);
 int robot_localization(int *robot_x, int *robot_y, int *direction);
