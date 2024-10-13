@@ -418,20 +418,19 @@ int* get_colour_dataPoint(int*coloursArray, int colour, int dataPoint)
 int* learning_colour_sensor(void)
 {
   FILE *file;
-  int colour, colourRead, r, g, b;
+  int colour, colourRead, r, g, b, i;
   int *coloursArray, *dataPoint;
   char colourStr[8];
 
   coloursArray = (int*)calloc(6, 3*DATA_PTS_PER_COLOUR*sizeof(int));
 
-  // read the data file
-  file = fopen(CALIBRATION_FILE, "r");
+  file = fopen(COLOUR_DATA_FILE, "r");
 
   for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
   {
     fscanf(file, "%s %d", colourStr, &colourRead);
 
-    for (int i=0; i<DATA_PTS_PER_COLOUR; i++)
+    for (i=0; i<DATA_PTS_PER_COLOUR; i++)
     {
       fscanf(file, "%d %d %d", &r, &g, &b);
 
@@ -455,12 +454,12 @@ int* learning_colour_sensor(void)
 */
 void read_colour_sensor(int repetitions, int* R, int* G, int* B)
 {
-  int successful, r, g, b, a;
+  int successful, r, g, b, a, i;
   int sumR = 0;
   int sumG = 0;
   int sumB = 0;
 
-  for (int i=0; i<repetitions; i++)
+  for (i=0; i<repetitions; i++)
   {
     successful = BT_read_colour_RGBraw_NXT(COLOUR_PORT, &r, &g, &b, &a);
     if (successful == 1)
@@ -497,39 +496,31 @@ void read_colour_sensor(int repetitions, int* R, int* G, int* B)
 */
 int detect_and_classify_colour(int* coloursArray)
 {
-  int colour, closestColour, R, G, B;
+  int colour, closestColour, R, G, B, i;
   int *dataPoint;
   double distance, closestDistance;
-  char confirm = 'y';
 
-  while (confirm == 'y')
+  // reads the colour sensor
+  read_colour_sensor(50, &R, &G, &B);
+  fprintf(stdout, "%d %d %d\n", R, G, B);
+
+  // finds the closest colour
+  closestColour = BLACKCOLOR;
+  closestDistance = 10000000.0;
+  for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
   {
-    fprintf(stdout, "Ready to scan? (y/n) ");
-    scanf("%c", &confirm);
-    getchar();
-
-    read_colour_sensor(50, &R, &G, &B);
-    fprintf(stdout, "%d %d %d\n", R, G, B);
-
-    closestColour = BLACKCOLOR;
-    closestDistance = 10000000.0;
-    for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
+    for (i=1; i<=DATA_PTS_PER_COLOUR; i++)
     {
-      for (int i=1; i<=DATA_PTS_PER_COLOUR; i++)
+      dataPoint = get_colour_dataPoint(coloursArray, colour, i);
+
+      distance = sqrt(pow(*dataPoint-R, 2) + pow(*(dataPoint+1)-G, 2) + pow(*(dataPoint+2)-B, 2));
+
+      if (distance < closestDistance)
       {
-        dataPoint = get_colour_dataPoint(coloursArray, colour, i);
-
-        distance = sqrt(pow(*dataPoint-R, 2) + pow(*(dataPoint+1)-G, 2) + pow(*(dataPoint+2)-B, 2));
-
-        if (distance < closestDistance)
-        {
-          closestColour = colour;
-          closestDistance = distance;
-        }
+        closestColour = colour;
+        closestDistance = distance;
       }
     }
-
-    printf("colour %d\n", closestColour);
   }
 
   return closestColour;
@@ -557,17 +548,17 @@ void calibrate_sensor(void)
    *   OIPTIONAL TO DO  -   Complete this function
    ***********************************************************************************************************************/
   FILE *file;
-  int colour, colourFound, R, G, B;
+  int colour, colourFound, R, G, B, i;
   int *coloursArray;
-  int correct[10];
+  double correct;
   char confirm = 'n';
   
   fprintf(stderr,"Calibration function called!\n");  
 
-  remove(CALIBRATION_FILE);
-  file = fopen(CALIBRATION_FILE, "a");
+  remove(COLOUR_DATA_FILE);
+  file = fopen(COLOUR_DATA_FILE, "a");
 
-  // /************************** calibrate each colour **************************/
+  /************************** get data on each colour **************************/
 
   for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
   {
@@ -575,9 +566,9 @@ void calibrate_sensor(void)
     fprintf(file, "Colour %d\n", colour);
 
     // get data as to what the colour looks like
-    for (int i=1; i<=DATA_PTS_PER_COLOUR; i++)
+    for (i=1; i<=DATA_PTS_PER_COLOUR; i++)
     {
-      fprintf(stdout, "Round %d/5\n", i);
+      fprintf(stdout, "Round %d/%d\n", i, DATA_PTS_PER_COLOUR);
       while (confirm != 'y')
       {
         fprintf(stdout, "Ready to scan? (y/n) ");
@@ -597,44 +588,44 @@ void calibrate_sensor(void)
 
   fclose(file);
 
+  /************************** check accuracy of data on each colour **************************/
+
   coloursArray = learning_colour_sensor();
 
-  detect_and_classify_colour(coloursArray);
+  remove(COLOUR_PROBABILITIES_FILE);
+  file = fopen(COLOUR_PROBABILITIES_FILE, "a");
 
-  // for (int colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
-  // {
-  //   fprintf(stdout, "\n Checking accuracy of getting colour: %d\n", colour);
+  for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
+  {
+    fprintf(stdout, "\n Checking accuracy of getting colour: %d\n", colour);
 
-  //   for (int i=0; i<10; i++)
-  //   {
-  //     fprintf(stdout, "Round %d\n", i);
-  //     while (tolower(confirm) != 'y')                                                                           
-
-  //     {
-  //       fprintf(stdout, "Ready to scan? (y/n) ");
-  //       scanf("%c", &confirm);
-  //     }
+    // testing colour classification
+    for (i=0; i<10; i++)
+    {
+      fprintf(stdout, "Round %d/10\n", i);
+      while (tolower(confirm) != 'y')                                                                           
+      {
+        fprintf(stdout, "Ready to scan? (y/n) ");
+        scanf("%c", &confirm);
+        getchar();
+      }
       
-  //     successful = BT_read_colour_RGBraw_NXT(COLOUR_PORT, &R, &G, &B, &A);
-  //     if (successful == 1)
-  //     {
-  //       // determine the colour it is closest to
-  //       colourFound = 1;  // TODO : get colour based off of classification
+      colourFound = detect_and_classify_colour(coloursArray);
 
-  //       fprintf(stdout, "The colour found: %d\n", colourFound);
-        
-  //       correct[i] = (colour == colourFound);
-  //     }
-  //     else
-  //     {
-  //       // try again
-  //       fprintf(stderr, "Sensor error. Try again.\n");
-  //       i--;
-  //     }
+      fprintf(stdout, "Colour Expected: %d Actual: %d\n", colour, colourFound);
 
-  //     confirm = 'n';
-  //   }
-  // } 
+      correct += (double)(colour == colourFound);
+
+      confirm = 'n';
+    }
+
+    // the accuracy of colour classification
+    correct = correct/10.0;
+    fprintf(stdout, "Colour %d %.2f\n", colour, correct);
+    fprintf(file, "Colour %d %.2f\n", colour, correct);
+  } 
+
+  fclose(file);
 
   free(coloursArray);
 }

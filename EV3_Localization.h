@@ -86,9 +86,15 @@ code that you have to complete in order to implement the localization algorithms
   Other Constants
 */
 
-#define CALIBRATION_FILE "calibration.txt"
+#define COLOUR_DATA_FILE "colour_data.txt"
+#define COLOUR_PROBABILITIES_FILE "colour_probabilities.txt"
 #define DATA_PTS_PER_COLOUR 5
 #define READS_PER_DATA_PT 100
+
+int* get_colour_dataPoint(int*coloursArray, int colour, int dataPoint);
+int* learning_colour_sensor(void);
+void read_colour_sensor(int repetitions, int* R, int* G, int* B);
+int detect_and_classify_colour(int* coloursArray);
 
 int parse_map(unsigned char *map_img, int rx, int ry);
 int robot_localization(int *robot_x, int *robot_y, int *direction);
