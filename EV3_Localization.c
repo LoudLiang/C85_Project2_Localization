@@ -134,7 +134,17 @@ int main(int argc, char *argv[])
 
  if (dest_x==-1&&dest_y==-1)
  {
+  if (BT_open(HEXKEY)!=0)
+  {
+    fprintf(stderr,"Unable to open comm socket to the EV3, make sure the EV3 kit is powered on, and that the\n");
+    fprintf(stderr," hex key for the EV3 matches the one in EV3_Localization.h\n");
+    exit(1);
+  }
+
   calibrate_sensor();
+  
+  // Cleanup and exit
+  BT_close();
   exit(1);
  }
 
@@ -391,6 +401,36 @@ int turn_at_intersection(int turn_direction)
   * 
   * 2. if turn_direction=1: symmetrical to the above.
   */
+
+  int angle = 0, rate;
+
+  BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
+  
+  // turning left
+  if (turn_direction)
+  {
+    BT_turn(MOTOR_LEFT, -20, MOTOR_RIGHT, 20);
+    while (angle > -90)
+    {
+      BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+      printf("angle %d\n", angle);
+    }
+  }
+
+  // turning right
+  else
+  {
+    BT_turn(MOTOR_LEFT, 20, MOTOR_RIGHT, -20);
+    while (angle < 90)
+    {
+      BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+      printf("angle %d\n", angle);
+    }
+  }
+  
+  BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
+  BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
+
   return(0);
 }
 
@@ -498,6 +538,222 @@ int go_to_target(int robot_x, int robot_y, int direction, int target_x, int targ
   return(0);  
 }
 
+/*
+  * Returns a pointer to a datapoint in coloursArray s.t.
+  *
+  *         *(p) = r, *(p+1) = g , *(p+2) = b 
+  * 
+  * e.g. get_colour_dataPoint(coloursArray, BLACKCOLOR, 1)
+  *      returns a pointer to the rgb value of the 1st data point
+  *      for the BLACKCOLOR
+  */
+int* get_colour_dataPoint(int*coloursArray, int colour, int dataPoint)
+{
+  colour--;
+  return (coloursArray + (colour * DATA_PTS_PER_COLOUR * 3) + (dataPoint * 3));
+}
+
+/*
+  Returns a pointer to a 1D array (index using get_colour_dataPoint)
+  that contains that colour data point values from calibration.
+*/
+int* learning_colour_sensor(void)
+{
+  FILE *file;
+  int colour, colourRead, r, g, b, i;
+  int *coloursArray, *dataPoint;
+  char colourStr[8];
+
+  coloursArray = (int*)calloc(6, 3*DATA_PTS_PER_COLOUR*sizeof(int));
+
+  file = fopen(COLOUR_DATA_FILE, "r");
+
+  for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
+  {
+    fscanf(file, "%s %d", colourStr, &colourRead);
+
+    for (i=0; i<DATA_PTS_PER_COLOUR; i++)
+    {
+      fscanf(file, "%d %d %d", &r, &g, &b);
+
+      dataPoint = get_colour_dataPoint(coloursArray, colour, i);
+      *dataPoint = r;
+      *(dataPoint+1) = g;
+      *(dataPoint+2) = b;
+    }
+  }
+   
+  fclose(file);
+
+  return coloursArray;
+}
+
+/*
+  Reads the colour sensor 'repetitions' times and stores the value
+  in R, G, B. 
+
+  e.g. read_colour_sensor(1000, &R, &G, &B);
+*/
+void read_colour_sensor(int repetitions, int* R, int* G, int* B)
+{
+  int successful, r, g, b, a, i;
+  int sumR = 0;
+  int sumG = 0;
+  int sumB = 0;
+
+  for (i=0; i<repetitions; i++)
+  {
+    successful = BT_read_colour_RGBraw_NXT(COLOUR_PORT, &r, &g, &b, &a);
+    if (successful == 1)
+    {
+      sumR += r;
+      sumG += g;
+      sumB += b;
+    }
+    else
+    {
+      // try again
+      fprintf(stderr, "Sensor error. Try again.\n");
+      i--;
+    }
+  }
+
+  *R = sumR/repetitions;
+  *G = sumG/repetitions;
+  *B = sumB/repetitions;
+}
+
+/*
+  Given a set of data points corresponding to different colours,
+  it classifies the detected colour via its nearest neighbour.
+
+  The following return values and its corresponding colour:
+
+  BLACKCOLOR   = 1,
+  BLUECOLOR    = 2,
+  GREENCOLOR   = 3,
+  YELLOWCOLOR  = 4,
+  REDCOLOR     = 5,
+  WHITECOLOR   = 6
+*/
+int detect_and_classify_colour(int* coloursArray)
+{
+  int colour, closestColour, R, G, B, i;
+  int *dataPoint;
+  double distance, closestDistance;
+
+  // reads the colour sensor
+  read_colour_sensor(50, &R, &G, &B);
+  fprintf(stdout, "%d %d %d\n", R, G, B);
+
+  // finds the closest colour
+  closestColour = 0;
+  closestDistance = 10000000.0;
+  for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
+  {
+    for (i=1; i<=DATA_PTS_PER_COLOUR; i++)
+    {
+      dataPoint = get_colour_dataPoint(coloursArray, colour, i);
+
+      distance = sqrt(pow(*dataPoint-R, 2) + pow(*(dataPoint+1)-G, 2) + pow(*(dataPoint+2)-B, 2));
+
+      if (distance < closestDistance)
+      {
+        closestColour = colour;
+        closestDistance = distance;
+      }
+    }
+  }
+
+  return closestColour;
+}
+
+/*
+  Scans the colours to the right, center, and left of the bot.
+
+  Writes the right, center, and left colours in coloursDetected 
+  in that order.
+*/
+void scan_colours(int* coloursArray, int coloursDetected[3])
+{
+  int angle, rate, power, prevColour, i;
+  double err, prevErr, diff;
+
+  // rotates gyro all the way to the right
+  BT_motor_port_start(MOTOR_MIDDLE, 100);
+  BT_motor_port_stop(MOTOR_MIDDLE, 0);
+
+  // wait until readings are the same so
+  // we know we're at the end of the stopper (right)
+  prevColour = 1;
+  while (prevColour != coloursDetected[2])
+  {
+    prevColour = coloursDetected[2];
+
+    coloursDetected[2] = detect_and_classify_colour(coloursArray);
+    fprintf(stderr, "colour detected: %d\n", coloursDetected[2]);
+  }
+
+  // reset gyro sensor to 0
+  BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
+  fprintf(stderr, "angle %d rate of change %d\n", angle, rate);
+
+  // rotate all the way to the left
+  BT_motor_port_start(MOTOR_MIDDLE, -80);
+  BT_motor_port_stop(MOTOR_MIDDLE, 0);
+
+  // scan colour (left)
+  prevColour = 1;
+  while (prevColour != coloursDetected[0])
+  {
+    prevColour = coloursDetected[0];
+
+    coloursDetected[0] = detect_and_classify_colour(coloursArray);
+    fprintf(stderr, "colour detected: %d\n", coloursDetected[0]);
+  }
+
+  BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+  printf("angle %d\n", angle);
+
+  // rotate until gyro at center
+  err = -75.0 - angle;
+  prevErr = err;
+  diff = 0;
+  while (abs(err) > 5)
+  {
+    printf("error %.2f\n", err);
+    power = (int)(60.0 * (err/75.0 + diff/100.0));
+    power = (power > 100) ? 100 : power;
+    power = (power < -100) ? -100 : power;
+    printf("power %d\n", power);
+
+    BT_motor_port_start(MOTOR_MIDDLE, power);
+
+    BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+
+    prevErr = err;
+    err = -75.0 - angle;
+    diff = err - prevErr;
+
+    BT_motor_port_stop(MOTOR_MIDDLE, 0);
+
+    printf("angle %d err %.2f prev err %.2f, diff %.2f\n", angle, err, prevErr, diff);
+  }
+
+  // scan colour (center)
+  prevColour = 1;
+  while (prevColour != coloursDetected[1])
+  {
+    prevColour = coloursDetected[1];
+
+    coloursDetected[1] = detect_and_classify_colour(coloursArray);
+    fprintf(stderr, "colour detected: %d\n", coloursDetected[1]);
+  }
+
+  // reset gyro sensor to 0 since it's in the center
+  BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
+}
+
 void calibrate_sensor(void)
 {
  /*
@@ -519,7 +775,94 @@ void calibrate_sensor(void)
   /************************************************************************************************************************
    *   OIPTIONAL TO DO  -   Complete this function
    ***********************************************************************************************************************/
-  fprintf(stderr,"Calibration function called!\n");  
+  FILE *file;
+  int colour, colourFound, R, G, B, i;
+  int *coloursArray, coloursDetected[3];
+  double correct;
+  char confirm = 'n';
+  
+  fprintf(stderr,"Calibration function called!\n");
+
+  remove(COLOUR_DATA_FILE);
+  file = fopen(COLOUR_DATA_FILE, "a");
+
+  /************************** get data on each colour **************************/
+
+  for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
+  {
+    fprintf(stderr, "\n Getting data on colour: %d\n", colour);
+    fprintf(file, "Colour %d\n", colour);
+
+    // get data as to what the colour looks like
+    for (i=1; i<=DATA_PTS_PER_COLOUR; i++)
+    {
+      fprintf(stderr, "Round %d/%d\n", i, DATA_PTS_PER_COLOUR);
+      while (confirm != 'y')
+      {
+        fprintf(stderr, "Ready to scan? (y/n) ");
+        scanf("%c", &confirm);
+        getchar();
+      }
+      
+      read_colour_sensor(READS_PER_DATA_PT, &R, &G, &B);
+
+      // Write in format: R G B A
+      fprintf(stderr, "%d %d %d\n", R, G, B);
+      fprintf(file, "%d %d %d\n", R, G, B);
+
+      confirm = 'n';
+    }
+  }
+
+  fclose(file);
+
+  /************************** check accuracy of data on each colour **************************/
+
+  coloursArray = learning_colour_sensor();
+
+  remove(COLOUR_PROBABILITIES_FILE);
+  file = fopen(COLOUR_PROBABILITIES_FILE, "a");
+
+  for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
+  {
+    fprintf(stderr, "\n Checking accuracy of getting colour: %d\n", colour);
+
+    // testing colour classification
+    for (i=0; i<10; i++)
+    {
+      fprintf(stderr, "Round %d/10\n", i+1);
+      while (tolower(confirm) != 'y')                                                                           
+      {
+        fprintf(stderr, "Ready to scan? (y/n) ");
+        scanf("%c", &confirm);
+        getchar();
+      }
+      
+      colourFound = detect_and_classify_colour(coloursArray);
+
+      fprintf(stderr, "Colour Expected: %d Actual: %d\n", colour, colourFound);
+
+      correct += (double)(colour == colourFound);
+
+      confirm = 'n';
+    }
+
+    // the accuracy of colour classification
+    correct = correct/10.0;
+    fprintf(stderr, "Colour %d %.2f\n", colour, correct);
+    fprintf(file, "Colour %d %.2f\n", colour, correct);
+  } 
+
+  fclose(file);
+
+  /************************** calibrate gyro sensor **************************/
+
+  // moves the gyro sensor to the middle and resets the angle count
+  scan_colours(coloursArray, coloursDetected);
+  for (int j=0; j<3; j++) 
+    printf("colours detected %d %d %d\n", coloursDetected[0], coloursDetected[1], coloursDetected[2]);
+
+  free(coloursArray);
 }
 
 int parse_map(unsigned char *map_img, int rx, int ry)
