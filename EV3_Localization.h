@@ -95,6 +95,7 @@ int* get_colour_dataPoint(int*coloursArray, int colour, int dataPoint);
 int* learning_colour_sensor(void);
 void read_colour_sensor(int repetitions, int* R, int* G, int* B);
 int detect_and_classify_colour(int* coloursArray);
+void scan_colours(int* coloursArray, int coloursDetected[3]);
 
 int parse_map(unsigned char *map_img, int rx, int ry);
 int robot_localization(int *robot_x, int *robot_y, int *direction);
