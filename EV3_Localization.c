@@ -114,8 +114,8 @@ int main(int argc, char *argv[])
   exit(1);
  }
 
- pid_Init(pid_straight);
- pid_Init(pid_turn);
+ pid_straight_init(pid_straight);
+ pid_turn_init(pid_turn);
 
  memset(&map[0][0],0,400*4*sizeof(int));
  sx=0;
@@ -315,7 +315,52 @@ int drive_along_street(void)
   * Similarly, I'm thinking of implementing a timeout to prevent infinite loop.
   */
 
-  return(0);
+  // TODO: CHANGE SPEED BASED ON REAL SITUATION
+ double base_speed = 20.0;
+ double max_speed = 80.0;
+ int angle = 0, rate;
+
+ BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
+ BT_drive(MOTOR_LEFT, MOTOR_RIGHT, base_speed);
+
+ while(1) {
+  // TODO: IMPLEMENT STOP CONDITION: seeing yellow?
+  BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+  int error = angle - straight_setpoint;
+  double pid_out = pid_controller_update(pid_straight, straight_setpoint, angle);
+
+  // TODO: CHANGE ADD/SUBSTRACT OUTPUT BSASED ON REAL SITUATION
+  if (error > 0) {
+   // bit right. Tweaking left.
+   double left_speed = base_speed - pid_out;
+   double right_speed = base_speed + pid_out;
+   // Limit speed
+   if (left_speed > max_speed) {
+    left_speed = max_speed;
+   } else if (left_speed < -max_speed) {
+    left_speed = -max_speed;
+   }
+  } else if (error < 0) {
+   double left_speed = base_speed + pid_out;
+   double right_speed = base_speed - pid_out;
+   // Limit speed
+   if (right_speed > max_speed) {
+    right_speed = max_speed;
+   } else if (right_speed < -max_speed) {
+    right_speed = -max_speed;
+   }
+  } else if (error == 0) {
+   continue;
+  }
+  BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
+  BT_motor_port_start(MOTOR_LEFT, left_speed);
+  BT_motor_port_start(MOTOR_RIGHT, right_speed);
+  // usleep(100000);
+  // BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
+  
+  // Small delay to control loop frequency
+  usleep(10000); 
+ }
 }
 
 int scan_intersection(int *tl, int *tr, int *br, int *bl)
@@ -1154,41 +1199,48 @@ unsigned char *readPPMimage(const char *filename, int *rx, int *ry)
  return(im);    
 }
 
-void pid_Init(PIDController *pid) {
+void pid_straight_init(PIDController *pid) {
 /* Clear controller variables */
- pid->Kp = 0.0;
- pid->Ki = 0.0;
- pid->Kd = 0.0;
+ pid->Kp = 0.2;
+ pid->Ki = 0.005;
+ pid->Kd = 0.1;
 
-	pid->integrator = 0.0;
-	pid->prevError = 0.0;
+ pid->limMin = -80.0;
+ pid->limMax = 80.0;
 
-	pid->differentiator = 0.0;
-	pid->prevMeasurement = 0.0;
+	// pid->integrator = 0.0;
+	pid->prevError = 0;
+ pid->prevErrorArr = {0};
+ pid->arr_size = 10;
+	// pid->differentiator = 0.0;
+	pid->prevMeasurement = 0;
 
 	pid->out = 0.0;
 }
 
+void pid_turn_init(PIDController *pid) {
+ pid->Kp = 0.0;
+ pid->Ki = 0.0;
+ pid->Kd = 0.0;
+ // TODO: complete this
+}
+
 double pid_controller_update(PIDController *pid, int error, int measurement) {
- double propotional;
+ double propotional, integrator, differentiator;
 
  // proportional
  propotional = pid->Kp * error;
 
  // integral
- pid->integrator = pid->integrator + 0.5 * pid->Ki * pid->T * (error + pid->prevError);
- if (pid->integrator > pid->limMaxInt) {
-  pid->integrator = pid->limMaxInt;
- } else if (pid->integrator < pid->limMinInt) {
-  pid->integrator = pid->limMinInt;
+ for (int i=0; i<pid->arr_size; i++) {
+  integrator += pid->prevError[i];
  }
+ integrator = integrator * pid->Ki;
 
  // derivative
- pid->differentiator = -(2.0 * pid->Kd * (measurement - pid->prevMeasurement) 
-                  + (2.0 * pid->tau - pid->T) * pid->differentiator) 
-                  / (2.0 * pid->tau + pid->T);
+ differentiator = pid->Kd * (error - pid->prevError);
 
- pid->out = propotional + pid->integrator + pid->differentiator;
+ pid->out = propotional + integrator + differentiator;
  if (pid->out > pid->limMax) {
   pid->out = pid->limMax;
  } else if (pid->out < pid->limMin) {
@@ -1196,58 +1248,18 @@ double pid_controller_update(PIDController *pid, int error, int measurement) {
  }
 
  pid->prevError = error;
+ for (int i=0; i<pid->arr_size; i++) {
+  if (pid->prevErrorArr[i] == 0) {
+   pid->prevErrorArr[i] = error;
+  }
+  else {
+   for(int j=1;j<pid->arr_size;j++) {
+    pid->prevErrorArr[j-1] = pid->prevErrorArr[j];
+   }
+   pid->prevErrorArr[pid->arr_size-1] = error;
+  }
+ }
  pid->prevMeasurement = measurement;
 
  return pid->out;
-}
-
-
-void move_straight() {
- // TODO: CHANGE SPEED BASED ON REAL SITUATION
- double base_speed = 20.0;
- double max_speed = 80.0;
- int angle = 0, rate;
-
- BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
- BT_drive(MOTOR_LEFT, MOTOR_RIGHT)
-
- while(1) {
-  // TODO: IMPLEMENT STOP CONDITION: seeing yellow?
-  BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
-  int error = angle - straight_setpoint;
-  double pid_out = pid_controller_update(pid_straight, straight_setpoint, angle);
-
-  // TODO: CHANGE ADD/SUBSTRACT OUTPUT BSASED ON REAL SITUATION
-  if (error > 0) {
-   // bit right. Tweaking left.
-   double left_speed = base_speed + pid_out;
-   double right_speed = base_speed - pid_out;
-  }
-
-  // Limit speed
-  if (left_speed > max_speed) {
-   left_speed = max_speed;
-  } else if (left_speed < -max_speed) {
-   left_speed = -max_speed;
-  }
-  if (right_speed > max_speed) {
-   right_speed = max_speed;
-  } else if (right_speed < -max_speed) {
-   right_speed = -max_speed;
-  }
-
-  BT_motor_port_start(motor_left_port, left_speed);
-  BT_motor_port_start(motor_right_port, right_speed);
-
-  left_degree_prev = left_degree_now;
-  right_degree_prev = right_degree_now;
-
-  // Small delay to control loop frequency
-  usleep(10000); 
- }
-
-}
-
-void turn_robot(double degree) {
- return 0;
 }

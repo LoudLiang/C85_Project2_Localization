@@ -77,28 +77,19 @@ typedef struct {
   double Ki;
   double Kd;
 
-  /* Derivative low-pass filter time constant */
-  float tau;
-
   /* Output limits */
-  float limMin;
-	float limMax;
-
-  /* Integrator limits */
-  float limMinInt;
-	float limMaxInt;
-
-  /* Sample time (in seconds) */
-	float T;
+  double limMin;
+	double limMax;
 
   /* Controller "memory" */
-	float integrator;
-	float prevError;			/* Required for integrator */
-	float differentiator;
-	float prevMeasurement;		/* Required for differentiator */
+	// double integrator;
+  int prevError;
+	int[10] prevErrorArr;
+	// double differentiator;
+	int prevMeasurement;
 
 	/* Controller output */
-	float out;
+	double out;
 
 } PIDController;
 
@@ -136,7 +127,8 @@ int scan_intersection(int *tl, int *tr, int *br, int *bl);
 int turn_at_intersection(int turn_direction);
 void calibrate_sensor(void);
 unsigned char *readPPMimage(const char *filename, int *rx, int*ry);
-void pid_Init(PIDController *pid);
+void pid_straight_init(PIDController *pid);
+void pid_turn_init(PIDController *pid);
 void move_straight(void);
 void turn_robot(double degree);
 #endif
