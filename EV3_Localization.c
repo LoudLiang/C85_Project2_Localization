@@ -257,6 +257,9 @@ int drive_along_street(void)
   * You can use the return value to indicate success or failure, or to inform the rest of your code of the state of your
   * bot after calling this function.
   */   
+
+  // TO DO: return the colour value of where bot has stopped
+  //        i.e. REDCOLOR if stopped at border or YELLOWCOLOR if stopped at intersection
   return(0);
 }
 
@@ -466,12 +469,48 @@ int robot_localization(int *robot_x, int *robot_y, int *direction)
    *   TO DO  -   Complete this function
    ***********************************************************************************************************************/
 
- // Return an invalid location/direction and notify that localization was unsuccessful (you will delete this and replace it
- // with your code).
- *(robot_x)=-1;
- *(robot_y)=-1;
- *(direction)=-1;
- return(0);
+  int colour, tl, tr, br, bl;
+  int *coloursArray;
+
+  // center the bot onto a street
+  find_street();
+
+  // drive along the street until you hit an intersection
+  colour = drive_along_street();
+
+  // if at the border, turn around 
+  if (colour == REDCOLOR)
+  {
+    turn(180);
+  }
+
+  // not at the border, scan intersection
+  else
+  {
+    scan_intersection(coloursArray, &tl, &tr, &br, &bl);
+
+    // make a decision 
+    
+    // go straight (do nothing) OR turn
+    turn_at_intersection(1);
+  }
+
+  // update probabilities
+
+  // Return an invalid location/direction and notify that localization was unsuccessful (you will delete this and replace it
+  // with your code).  
+  *(robot_x)=-1;
+  *(robot_y)=-1;
+  *(direction)=-1;
+
+  // if know where we are, return 1
+  if (0)
+  {
+    return(1);
+  }
+
+  // else continue localization
+  return robot_localization(robot_x, robot_y, direction);
 }
 
 int go_to_target(int robot_x, int robot_y, int direction, int target_x, int target_y)
