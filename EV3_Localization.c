@@ -340,6 +340,44 @@ int scan_intersection(int*coloursArray, int *tl, int *tr, int *br, int *bl)
   return(1);
 }
 
+/*
+  Turns the robot turn_angle degrees
+
+  Returns 1 if successful.
+*/
+int turn(int turn_angle)
+{
+  int angle, rate, lpow = 0, rpow = 0;
+
+  BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
+  
+  // turning clockwise
+  if (turn_angle > 0)
+  {
+    lpow = 20;
+    rpow = -20;
+  }
+
+  // turning counter-clockwise
+  else
+  {
+    lpow = -20;
+    rpow = 20;
+  }
+
+  BT_turn(MOTOR_LEFT, lpow, MOTOR_RIGHT, rpow);
+  while (abs(angle) < abs(turn_angle))
+  {
+    BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+    printf("angle %d\n", angle);
+  }
+  
+  BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
+  BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
+
+  return(1);
+}
+
 int turn_at_intersection(int turn_direction)
 {
  /*
@@ -354,36 +392,25 @@ int turn_at_intersection(int turn_direction)
   * You can use the return value to indicate success or failure, or to inform your code of the state of the bot
   */
 
-  int angle = 0, rate;
-
-  BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
-  
   // turning left
   if (turn_direction)
   {
-    BT_turn(MOTOR_LEFT, -20, MOTOR_RIGHT, 20);
-    while (angle > -90)
-    {
-      BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
-      printf("angle %d\n", angle);
-    }
+    turn(-90);
+    
+    // TODO: add in check with colour sensor to make sure it's
+    //       over the street or an intersection
   }
 
   // turning right
   else
   {
-    BT_turn(MOTOR_LEFT, 20, MOTOR_RIGHT, -20);
-    while (angle < 90)
-    {
-      BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
-      printf("angle %d\n", angle);
-    }
-  }
-  
-  BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
-  BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
+    turn(90);
 
-  return(0);
+    // TODO: add in check with colour sensor to make sure it's
+    //       over the street or an intersection
+  }
+
+  return(1);
 }
 
 int robot_localization(int *robot_x, int *robot_y, int *direction)

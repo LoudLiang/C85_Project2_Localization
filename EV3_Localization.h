@@ -91,6 +91,7 @@ code that you have to complete in order to implement the localization algorithms
 #define DATA_PTS_PER_COLOUR 5
 #define READS_PER_DATA_PT 100
 
+int turn(int turn_angle);
 int* get_colour_dataPoint(int*coloursArray, int colour, int dataPoint);
 int* learning_colour_sensor(void);
 void read_colour_sensor(int repetitions, int* R, int* G, int* B);
