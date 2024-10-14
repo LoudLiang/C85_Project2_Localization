@@ -219,7 +219,12 @@ int main(int argc, char *argv[])
 
  // HERE - write code to call robot_localization() and go_to_target() as needed, any additional logic required to get the
  //        robot to complete its task should be here.
+//  int tl, tr, br, bl;
+//  int* coloursArray = learning_colour_sensor();
+//  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
+//  fprintf(stderr, "tl %d tr %d br %d bl %d\n", tl, tr, br, bl);
 
+//  free(coloursArray);
 
  // Cleanup and exit - DO NOT WRITE ANY CODE BELOW THIS LINE
  BT_close();
@@ -255,7 +260,7 @@ int drive_along_street(void)
   return(0);
 }
 
-int scan_intersection(int *tl, int *tr, int *br, int *bl)
+int scan_intersection(int*coloursArray, int *tl, int *tr, int *br, int *bl)
 {
  /*
   * This function carries out the intersection scan - the bot should (obviously) be placed at an intersection for this,
@@ -284,14 +289,55 @@ int scan_intersection(int *tl, int *tr, int *br, int *bl)
   /************************************************************************************************************************
    *   TO DO  -   Complete this function
    ***********************************************************************************************************************/
+  
+  int colour, prevColour, coloursDetected[3];
 
- // Return invalid colour values, and a zero to indicate failure (you will replace this with your code)
- *(tl)=-1;
- *(tr)=-1;
- *(br)=-1;
- *(bl)=-1;
- return(0);
- 
+  // scan the bottom left and bottom right colours
+  scan_colours(coloursArray, coloursDetected);
+  *(br) = coloursDetected[0];
+  *(bl) = coloursDetected[2];
+
+  // move forward until no longer on yellow (intersection)
+  BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 5);
+
+  colour = YELLOWCOLOR;
+  while (colour == YELLOWCOLOR)
+  {
+    colour = detect_and_classify_colour(coloursArray);
+  }
+  BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
+  BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
+
+  // move the sensor to the right
+  BT_motor_port_start(MOTOR_MIDDLE, 100);
+  BT_motor_port_stop(MOTOR_MIDDLE, 0);
+
+  prevColour = 1;
+  while (prevColour != colour)
+  {
+    prevColour = colour;
+
+    colour = detect_and_classify_colour(coloursArray);
+    fprintf(stderr, "colour detected: %d\n", colour);
+  }
+
+  // keep moving forward until no longer seeing black (street)
+  BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 5);
+
+  colour = BLACKCOLOR;
+  while (colour == BLACKCOLOR)
+  {
+    colour = detect_and_classify_colour(coloursArray);
+  }
+  BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
+  BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
+
+  // scan the top left and top right colours
+  scan_colours(coloursArray, coloursDetected);
+  *(tr) = coloursDetected[0];
+  *(tl) = coloursDetected[2];
+  
+  return(1);
 }
 
 int turn_at_intersection(int turn_direction)
@@ -553,14 +599,19 @@ int detect_and_classify_colour(int* coloursArray)
     }
   }
 
+  fprintf(stderr, "colour %d\n", closestColour);
+
   return closestColour;
 }
 
 /*
   Scans the colours to the right, center, and left of the bot.
 
-  Writes the right, center, and left colours in coloursDetected 
-  in that order.
+  Writes values to coloursDetected array s.t. 
+
+  coloursDetected[0] = left colour
+  coloursDetected[1] = center colour
+  coloursDetected[2] = right colour
 */
 void scan_colours(int* coloursArray, int coloursDetected[3])
 {
@@ -587,7 +638,7 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
   fprintf(stderr, "angle %d rate of change %d\n", angle, rate);
 
   // rotate all the way to the left
-  BT_motor_port_start(MOTOR_MIDDLE, -80);
+  BT_motor_port_start(MOTOR_MIDDLE, -70);
   BT_motor_port_stop(MOTOR_MIDDLE, 0);
 
   // scan colour (left)
@@ -604,29 +655,14 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
   printf("angle %d\n", angle);
 
   // rotate until gyro at center
-  err = -75.0 - angle;
-  prevErr = err;
-  diff = 0;
-  while (abs(err) > 5)
+  BT_motor_port_start(MOTOR_MIDDLE, 30);
+  while (angle < -90)
   {
-    printf("error %.2f\n", err);
-    power = (int)(60.0 * (err/75.0 + diff/100.0));
-    power = (power > 100) ? 100 : power;
-    power = (power < -100) ? -100 : power;
-    printf("power %d\n", power);
-
-    BT_motor_port_start(MOTOR_MIDDLE, power);
-
     BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
-
-    prevErr = err;
-    err = -75.0 - angle;
-    diff = err - prevErr;
-
-    BT_motor_port_stop(MOTOR_MIDDLE, 0);
-
-    printf("angle %d err %.2f prev err %.2f, diff %.2f\n", angle, err, prevErr, diff);
+    printf("angle %d\n", angle);
   }
+  BT_motor_port_start(MOTOR_MIDDLE, 0);
+  BT_motor_port_stop(MOTOR_MIDDLE, 0);
 
   // scan colour (center)
   prevColour = 1;
