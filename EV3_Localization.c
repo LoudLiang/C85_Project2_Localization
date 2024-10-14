@@ -94,6 +94,61 @@ int map[400][4];            // This holds the representation of the map, up to 2
 int sx, sy;                 // Size of the map (number of intersections along x and y)
 double beliefs[400][4];     // Beliefs for each location and motion direction
 
+/*
+  SOUND SEQUENCES FOR COLOUR DETECTION
+*/
+int tone_data[6][50][3] = {
+  {
+    { 261, 1000, 20 },
+    { -1, -1, -1 }
+  }, // BLACK
+  {
+    { 415, 100, 20 },
+    { 415, 100, 20 },
+    { 415, 100, 20 },
+    { 415, 100, 20 },
+    { 392, 200, 20 },
+    { 392, 150, 20 },
+    { 392, 200, 20 },
+    { 311, 100, 20 },
+    { 293, 300, 20 },
+    { -1, -1, -1 }
+  }, // BLUE
+  {
+    { 175, 200, 20 },
+    { 175, 200, 20 },
+    { 196, 200, 20 },
+    { 208, 200, 20 },
+    { 311, 200, 20 },
+    { 262, 250, 20 },
+    { -1, -1, -1 }
+  }, // GREEN
+  {
+    { 261, 250, 20 },
+    { 293, 250, 20 },
+    { 329, 500, 20 },
+    { -1, -1, -1 }
+  }, // YELLOW
+  {
+    { 293, 250, 20 },
+    { 277, 250, 20 },
+    { 293, 250, 20 },
+    { 277, 250, 20 },
+    { -1, -1, -1 }
+  }, // RED
+  {
+    { 247, 100, 20 },
+    { 494, 100, 20 },
+    { 247, 100, 20 },
+    { 494, 100, 20 },
+    { 466, 100, 20 },
+    { 247, 100, 20 },
+    { 466, 100, 20 },
+    { 370, 200, 20 },
+    { -1, -1, -1 }
+  }  // WHITE
+};
+
 int main(int argc, char *argv[])
 {
  char mapname[1024];
@@ -698,6 +753,7 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
     coloursDetected[2] = detect_and_classify_colour(coloursArray);
     fprintf(stderr, "colour detected: %d\n", coloursDetected[2]);
   }
+  BT_play_tone_sequence(tone_data[prevColour - 1]);
 
   // reset gyro sensor to 0
   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
@@ -716,6 +772,7 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
     coloursDetected[0] = detect_and_classify_colour(coloursArray);
     fprintf(stderr, "colour detected: %d\n", coloursDetected[0]);
   }
+  BT_play_tone_sequence(tone_data[prevColour - 1]);
 
   BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
   printf("angle %d\n", angle);
@@ -739,6 +796,7 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
     coloursDetected[1] = detect_and_classify_colour(coloursArray);
     fprintf(stderr, "colour detected: %d\n", coloursDetected[1]);
   }
+  BT_play_tone_sequence(tone_data[prevColour - 1]);
 
   // reset gyro sensor to 0 since it's in the center
   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
