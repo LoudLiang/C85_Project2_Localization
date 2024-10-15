@@ -380,12 +380,12 @@ int drive_along_street(void)
   // TODO: CHANGE SPEED BASED ON REAL SITUATION
  double base_speed = 20.0;
  double max_speed = 80.0;
- int angle = 0, rate;
+ int angle = 0, rate, *colorArr;
 
  // rotate_gyro_to_centre();
  BT_drive(MOTOR_LEFT, MOTOR_RIGHT, base_speed);
 
- int *colorArr = learning_colour_sensor();
+ reading_colour_data(colorArr);
 
 //  for (int m=0; m<1000; m++) {
  while(1) {
@@ -448,7 +448,6 @@ int drive_along_street(void)
  }
  BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
  BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
- free(colorArr);
  return 0;
 }
 
@@ -510,13 +509,16 @@ int scan_intersection(int*coloursArray, int *tl, int *tr, int *br, int *bl)
     fprintf(stderr, "colour detected: %d\n", colour);
   }
 
-  // // keep moving forward until no longer seeing black (street)
-  // BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 15);
+  // keep moving forward until no longer seeing black (street)
+  if (colour == BLACKCOLOR)
+  {
+    BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 15);
 
-  // colour = wait_colour_change(coloursArray, BLACKCOLOR);
+    colour = wait_colour_change(coloursArray, BLACKCOLOR);
 
-  // BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
-  // BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
+    BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
+    BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);  
+  }
 
   // scan the top left and top right colours
   scan_colours(coloursArray, coloursDetected);
