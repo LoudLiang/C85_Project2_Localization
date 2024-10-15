@@ -91,20 +91,25 @@ code that you have to complete in order to implement the localization algorithms
 #define DATA_PTS_PER_COLOUR 5
 #define READS_PER_DATA_PT 100
 
-int turn(int turn_angle);
+void wait_ready_to_scan(void);
+int wait_colour_change(int* coloursArray, int initialColour);
+int wait_colour_consistent(int* coloursArray);
+int wait_turn_angle(int turn_angle);
+
+int turn(int* coloursArray, int turn_angle);
 int* get_colour_dataPoint(int*coloursArray, int colour, int dataPoint);
-int* learning_colour_sensor(void);
+void reading_colour_data(int* coloursArray);
 void read_colour_sensor(int repetitions, int* R, int* G, int* B);
 int detect_and_classify_colour(int* coloursArray);
 void scan_colours(int* coloursArray, int coloursDetected[3]);
 
 int parse_map(unsigned char *map_img, int rx, int ry);
-int robot_localization(int *robot_x, int *robot_y, int *direction);
+int robot_localization(int *coloursArray, int *robot_x, int *robot_y, int *direction);
 int go_to_target(int robot_x, int robot_y, int direction, int target_x, int target_y);
 int find_street(void);
 int drive_along_street(void);
 int scan_intersection(int* coloursArrary, int *tl, int *tr, int *br, int *bl);
-int turn_at_intersection(int turn_direction);
+int turn_at_intersection(int* coloursArray, int turn_direction);
 void calibrate_sensor(void);
 unsigned char *readPPMimage(const char *filename, int *rx, int*ry);
 

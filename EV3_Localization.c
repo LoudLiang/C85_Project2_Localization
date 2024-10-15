@@ -97,7 +97,7 @@ double beliefs[400][4];     // Beliefs for each location and motion direction
 /*
   SOUND SEQUENCES FOR COLOUR DETECTION
 */
-int tone_data[6][50][3] = {
+const int tone_data[6][50][3] = {
   {
     { 261, 1000, 20 },
     { -1, -1, -1 }
@@ -191,6 +191,8 @@ int main(int argc, char *argv[])
   *   read your calibration data for use in your localization code. Skip this if you are not using calibration
   * ****************************************************************************************************************/
  
+  int coloursArray[6*3*DATA_PTS_PER_COLOUR];
+  reading_colour_data(coloursArray);
  
  // Your code for reading any calibration information should not go below this line //
  
@@ -274,12 +276,10 @@ int main(int argc, char *argv[])
 
  // HERE - write code to call robot_localization() and go_to_target() as needed, any additional logic required to get the
  //        robot to complete its task should be here.
-//  int tl, tr, br, bl;
-//  int* coloursArray = learning_colour_sensor();
-//  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
-//  fprintf(stderr, "tl %d tr %d br %d bl %d\n", tl, tr, br, bl);
+ int tl, tr, br, bl;
 
-//  free(coloursArray);
+ scan_intersection(coloursArray, &tl, &tr, &br, &bl);
+ fprintf(stderr, "tl %d tr %d br %d bl %d\n", tl, tr, br, bl);
 
  // Cleanup and exit - DO NOT WRITE ANY CODE BELOW THIS LINE
  BT_close();
@@ -358,11 +358,8 @@ int scan_intersection(int*coloursArray, int *tl, int *tr, int *br, int *bl)
   // move forward until no longer on yellow (intersection)
   BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 5);
 
-  colour = YELLOWCOLOR;
-  while (colour == YELLOWCOLOR)
-  {
-    colour = detect_and_classify_colour(coloursArray);
-  }
+  colour = wait_colour_change(coloursArray, YELLOWCOLOR);
+
   BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
   BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
 
@@ -382,11 +379,8 @@ int scan_intersection(int*coloursArray, int *tl, int *tr, int *br, int *bl)
   // keep moving forward until no longer seeing black (street)
   BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 5);
 
-  colour = BLACKCOLOR;
-  while (colour == BLACKCOLOR)
-  {
-    colour = detect_and_classify_colour(coloursArray);
-  }
+  colour = wait_colour_change(coloursArray, BLACKCOLOR);
+
   BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
   BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
 
@@ -399,13 +393,46 @@ int scan_intersection(int*coloursArray, int *tl, int *tr, int *br, int *bl)
 }
 
 /*
+  Waits until angle is changed to the turn angle.
+
+  Returns the angle the gyro sensor is at.
+*/
+int wait_turn_angle(int turn_angle)
+{
+  int angle, rate;
+
+  BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+
+  // turns outwards
+  if (abs(turn_angle) > abs(angle))
+  {
+    while (abs(turn_angle) < abs(angle))
+    {
+      BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+      printf("angle %d\n", angle);
+    }
+  }
+  // turn towards the center
+  else
+  {
+    while (abs(turn_angle) > abs(angle))
+    {
+      BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+      printf("angle %d\n", angle);
+    }    
+  }
+  
+  return angle;
+}
+
+/*
   Turns the robot turn_angle degrees
 
   Returns 1 if successful.
 */
-int turn(int turn_angle)
+int turn(int* coloursArray, int turn_angle)
 {
-  int angle, rate, lpow = 0, rpow = 0;
+  int colour, angle, rate, lpow = 0, rpow = 0;
 
   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
   
@@ -424,10 +451,18 @@ int turn(int turn_angle)
   }
 
   BT_turn(MOTOR_LEFT, lpow, MOTOR_RIGHT, rpow);
-  while (abs(angle) < abs(turn_angle))
+
+  while (abs(turn_angle) < abs(angle))
   {
     BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
     printf("angle %d\n", angle);
+
+    // check if we've hit the road
+    colour = wait_colour_consistent(coloursArray);
+    if (colour == BLACKCOLOR || colour == YELLOWCOLOR)
+    {
+      break;
+    }
   }
   
   BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
@@ -436,7 +471,7 @@ int turn(int turn_angle)
   return(1);
 }
 
-int turn_at_intersection(int turn_direction)
+int turn_at_intersection(int* coloursArray, int turn_direction)
 {
  /*
   * This function is used to have the robot turn either left or right at an intersection (obviously your bot can not just
@@ -453,25 +488,19 @@ int turn_at_intersection(int turn_direction)
   // turning left
   if (turn_direction)
   {
-    turn(-90);
-    
-    // TODO: add in check with colour sensor to make sure it's
-    //       over the street or an intersection
+    turn(coloursArray, -90);
   }
 
   // turning right
   else
   {
-    turn(90);
-
-    // TODO: add in check with colour sensor to make sure it's
-    //       over the street or an intersection
+    turn(coloursArray, 90);
   }
 
   return(1);
 }
 
-int robot_localization(int *robot_x, int *robot_y, int *direction)
+int robot_localization(int *coloursArray, int *robot_x, int *robot_y, int *direction)
 {
  /*  This function implements the main robot localization process. You have to write all code that will control the robot
   *  and get it to carry out the actions required to achieve localization.
@@ -525,7 +554,6 @@ int robot_localization(int *robot_x, int *robot_y, int *direction)
    ***********************************************************************************************************************/
 
   int colour, tl, tr, br, bl;
-  int *coloursArray;
 
   // center the bot onto a street
   find_street();
@@ -536,7 +564,7 @@ int robot_localization(int *robot_x, int *robot_y, int *direction)
   // if at the border, turn around 
   if (colour == REDCOLOR)
   {
-    turn(180);
+    turn(coloursArray, 180);
   }
 
   // not at the border, scan intersection
@@ -547,7 +575,7 @@ int robot_localization(int *robot_x, int *robot_y, int *direction)
     // make a decision 
     
     // go straight (do nothing) OR turn
-    turn_at_intersection(1);
+    turn_at_intersection(coloursArray, 1);
   }
 
   // update probabilities
@@ -559,13 +587,13 @@ int robot_localization(int *robot_x, int *robot_y, int *direction)
   *(direction)=-1;
 
   // if know where we are, return 1
-  if (0)
+  if (1)
   {
     return(1);
   }
 
   // else continue localization
-  return robot_localization(robot_x, robot_y, direction);
+  return robot_localization(coloursArray, robot_x, robot_y, direction);
 }
 
 int go_to_target(int robot_x, int robot_y, int direction, int target_x, int target_y)
@@ -612,14 +640,11 @@ int* get_colour_dataPoint(int*coloursArray, int colour, int dataPoint)
   Returns a pointer to a 1D array (index using get_colour_dataPoint)
   that contains that colour data point values from calibration.
 */
-int* learning_colour_sensor(void)
+void reading_colour_data(int* coloursArray)
 {
   FILE *file;
-  int colour, colourRead, r, g, b, i;
-  int *coloursArray, *dataPoint;
+  int colour, colourRead, r, g, b, i, *dataPoint;
   char colourStr[8];
-
-  coloursArray = (int*)calloc(6, 3*DATA_PTS_PER_COLOUR*sizeof(int));
 
   file = fopen(COLOUR_DATA_FILE, "r");
 
@@ -639,8 +664,6 @@ int* learning_colour_sensor(void)
   }
    
   fclose(file);
-
-  return coloursArray;
 }
 
 /*
@@ -726,6 +749,43 @@ int detect_and_classify_colour(int* coloursArray)
 }
 
 /*
+  Waits until the colour detected changes from the initial colour.
+
+  Returns the new colour detected.
+*/
+int wait_colour_change(int* coloursArray, int initialColour)
+{
+  int colour = initialColour;
+  while (colour == initialColour)
+  {
+    colour = detect_and_classify_colour(coloursArray);
+  }
+  return colour;
+}
+
+/*
+  Waits until readings are the same twice in a row
+  in the case that the motor is moving.
+  
+  Returns the current colour reading.
+*/
+int wait_colour_consistent(int* coloursArray)
+{
+  int prevColour, currColour;
+
+  prevColour = 0;
+  currColour = detect_and_classify_colour(coloursArray);
+
+  while (prevColour != currColour)
+  {
+    prevColour = currColour;
+    currColour = detect_and_classify_colour(coloursArray);
+  }
+
+  return currColour;
+}
+
+/*
   Scans the colours to the right, center, and left of the bot.
 
   Writes values to coloursDetected array s.t. 
@@ -753,14 +813,10 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
     coloursDetected[2] = detect_and_classify_colour(coloursArray);
     fprintf(stderr, "colour detected: %d\n", coloursDetected[2]);
   }
-  BT_play_tone_sequence(tone_data[prevColour - 1]);
-
-  // reset gyro sensor to 0
-  BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
-  fprintf(stderr, "angle %d rate of change %d\n", angle, rate);
+  BT_play_tone_sequence(tone_data[coloursDetected[2] - 1]);
 
   // rotate all the way to the left
-  BT_motor_port_start(MOTOR_MIDDLE, -70);
+  BT_motor_port_start(MOTOR_MIDDLE, -80);
   BT_motor_port_stop(MOTOR_MIDDLE, 0);
 
   // scan colour (left)
@@ -772,19 +828,16 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
     coloursDetected[0] = detect_and_classify_colour(coloursArray);
     fprintf(stderr, "colour detected: %d\n", coloursDetected[0]);
   }
-  BT_play_tone_sequence(tone_data[prevColour - 1]);
-
-  BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
-  printf("angle %d\n", angle);
+  BT_play_tone_sequence(tone_data[coloursDetected[0] - 1]);
 
   // rotate until gyro at center
-  BT_motor_port_start(MOTOR_MIDDLE, 30);
+  BT_motor_port_start(MOTOR_MIDDLE, 40);
+  printf("angle %d less than -90", angle);
   while (angle < -90)
   {
     BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
     printf("angle %d\n", angle);
   }
-  BT_motor_port_start(MOTOR_MIDDLE, 0);
   BT_motor_port_stop(MOTOR_MIDDLE, 0);
 
   // scan colour (center)
@@ -796,10 +849,25 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
     coloursDetected[1] = detect_and_classify_colour(coloursArray);
     fprintf(stderr, "colour detected: %d\n", coloursDetected[1]);
   }
-  BT_play_tone_sequence(tone_data[prevColour - 1]);
+  BT_play_tone_sequence(tone_data[coloursDetected[1] - 1]);
 
   // reset gyro sensor to 0 since it's in the center
   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
+}
+
+/*
+  Waits until the user is ready to scan the next colour.
+*/
+void wait_ready_to_scan(void)
+{
+  char confirm = 'n';
+
+  while (confirm != 'y')
+  {
+    fprintf(stderr, "Ready to scan? (y/n) ");
+    scanf("%c", &confirm);
+    getchar();
+  }
 }
 
 void calibrate_sensor(void)
@@ -825,92 +893,77 @@ void calibrate_sensor(void)
    ***********************************************************************************************************************/
   FILE *file;
   int colour, colourFound, R, G, B, i;
-  int *coloursArray, coloursDetected[3];
+  int coloursArray[6*3*DATA_PTS_PER_COLOUR], coloursDetected[3];
   double correct;
-  char confirm = 'n';
   
   fprintf(stderr,"Calibration function called!\n");
 
-  remove(COLOUR_DATA_FILE);
-  file = fopen(COLOUR_DATA_FILE, "a");
+  // remove(COLOUR_DATA_FILE);
+  // file = fopen(COLOUR_DATA_FILE, "a");
 
   /************************** get data on each colour **************************/
 
-  for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
-  {
-    fprintf(stderr, "\n Getting data on colour: %d\n", colour);
-    fprintf(file, "Colour %d\n", colour);
+  // for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
+  // {
+  //   fprintf(stderr, "\n Getting data on colour: %d\n", colour);
+  //   fprintf(file, "Colour %d\n", colour);
 
-    // get data as to what the colour looks like
-    for (i=1; i<=DATA_PTS_PER_COLOUR; i++)
-    {
-      fprintf(stderr, "Round %d/%d\n", i, DATA_PTS_PER_COLOUR);
-      while (confirm != 'y')
-      {
-        fprintf(stderr, "Ready to scan? (y/n) ");
-        scanf("%c", &confirm);
-        getchar();
-      }
+  //   // get data as to what the colour looks like
+  //   for (i=1; i<=DATA_PTS_PER_COLOUR; i++)
+  //   {
+  //     fprintf(stderr, "Round %d/%d\n", i, DATA_PTS_PER_COLOUR);
+  //     wait_ready_to_scan();
       
-      read_colour_sensor(READS_PER_DATA_PT, &R, &G, &B);
+  //     read_colour_sensor(READS_PER_DATA_PT, &R, &G, &B);
 
-      // Write in format: R G B A
-      fprintf(stderr, "%d %d %d\n", R, G, B);
-      fprintf(file, "%d %d %d\n", R, G, B);
+  //     // Write in format: R G B A
+  //     fprintf(stderr, "%d %d %d\n", R, G, B);
+  //     fprintf(file, "%d %d %d\n", R, G, B);
+  //   }
+  // }
 
-      confirm = 'n';
-    }
-  }
-
-  fclose(file);
+  // fclose(file);
 
   /************************** check accuracy of data on each colour **************************/
 
-  coloursArray = learning_colour_sensor();
+  reading_colour_data(coloursArray);
 
-  remove(COLOUR_PROBABILITIES_FILE);
-  file = fopen(COLOUR_PROBABILITIES_FILE, "a");
+  // remove(COLOUR_PROBABILITIES_FILE);
+  // file = fopen(COLOUR_PROBABILITIES_FILE, "a");
 
-  for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
-  {
-    fprintf(stderr, "\n Checking accuracy of getting colour: %d\n", colour);
+  // for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
+  // {
+  //   fprintf(stderr, "\n Checking accuracy of getting colour: %d\n", colour);
 
-    // testing colour classification
-    for (i=0; i<10; i++)
-    {
-      fprintf(stderr, "Round %d/10\n", i+1);
-      while (tolower(confirm) != 'y')                                                                           
-      {
-        fprintf(stderr, "Ready to scan? (y/n) ");
-        scanf("%c", &confirm);
-        getchar();
-      }
+  //   // testing colour classification
+  //   for (i=0; i<10; i++)
+  //   {
+  //     fprintf(stderr, "Round %d/10\n", i+1);
+  //     wait_ready_to_scan();
       
-      colourFound = detect_and_classify_colour(coloursArray);
+  //     colourFound = detect_and_classify_colour(coloursArray);
 
-      fprintf(stderr, "Colour Expected: %d Actual: %d\n", colour, colourFound);
+  //     fprintf(stderr, "Colour Expected: %d Actual: %d\n", colour, colourFound);
 
-      correct += (double)(colour == colourFound);
+  //     correct += (double)(colour == colourFound);
+  //   }
 
-      confirm = 'n';
-    }
+  //   // the accuracy of colour classification
+  //   correct = correct/10.0;
+  //   fprintf(stderr, "Colour %d %.2f\n", colour, correct);
+  //   fprintf(file, "Colour %d %.2f\n", colour, correct);
+  // } 
 
-    // the accuracy of colour classification
-    correct = correct/10.0;
-    fprintf(stderr, "Colour %d %.2f\n", colour, correct);
-    fprintf(file, "Colour %d %.2f\n", colour, correct);
-  } 
-
-  fclose(file);
+  // fclose(file);
 
   /************************** calibrate gyro sensor **************************/
 
   // moves the gyro sensor to the middle and resets the angle count
+  fprintf(stderr, "Centering colour sensor\n");
+  wait_ready_to_scan();
   scan_colours(coloursArray, coloursDetected);
   for (int j=0; j<3; j++) 
-    printf("colours detected %d %d %d\n", coloursDetected[0], coloursDetected[1], coloursDetected[2]);
-
-  free(coloursArray);
+    fprintf(stderr, "colours detected %d %d %d\n", coloursDetected[0], coloursDetected[1], coloursDetected[2]);
 }
 
 int parse_map(unsigned char *map_img, int rx, int ry)
