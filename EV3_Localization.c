@@ -356,7 +356,7 @@ int scan_intersection(int*coloursArray, int *tl, int *tr, int *br, int *bl)
   *(bl) = coloursDetected[2];
 
   // move forward until no longer on yellow (intersection)
-  BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 5);
+  BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 15);
 
   colour = wait_colour_change(coloursArray, YELLOWCOLOR);
 
@@ -376,13 +376,13 @@ int scan_intersection(int*coloursArray, int *tl, int *tr, int *br, int *bl)
     fprintf(stderr, "colour detected: %d\n", colour);
   }
 
-  // keep moving forward until no longer seeing black (street)
-  BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 5);
+  // // keep moving forward until no longer seeing black (street)
+  // BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 15);
 
-  colour = wait_colour_change(coloursArray, BLACKCOLOR);
+  // colour = wait_colour_change(coloursArray, BLACKCOLOR);
 
-  BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
-  BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
+  // BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
+  // BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
 
   // scan the top left and top right colours
   scan_colours(coloursArray, coloursDetected);
@@ -721,7 +721,7 @@ int detect_and_classify_colour(int* coloursArray)
   double distance, closestDistance;
 
   // reads the colour sensor
-  read_colour_sensor(50, &R, &G, &B);
+  read_colour_sensor(30, &R, &G, &B);
   fprintf(stdout, "%d %d %d\n", R, G, B);
 
   // finds the closest colour
@@ -816,8 +816,15 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
   BT_play_tone_sequence(tone_data[coloursDetected[2] - 1]);
 
   // rotate all the way to the left
-  BT_motor_port_start(MOTOR_MIDDLE, -80);
+  BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
+  BT_motor_port_start(MOTOR_MIDDLE,-100);  
   BT_motor_port_stop(MOTOR_MIDDLE, 0);
+
+  while (angle > -120)
+  {
+    BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+    printf("angle %d\n", angle);
+  }
 
   // scan colour (left)
   prevColour = 1;
@@ -831,8 +838,8 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
   BT_play_tone_sequence(tone_data[coloursDetected[0] - 1]);
 
   // rotate until gyro at center
-  BT_motor_port_start(MOTOR_MIDDLE, 40);
-  printf("angle %d less than -90", angle);
+  BT_motor_port_start(MOTOR_MIDDLE, 35);
+  printf("angle %d less than -90\n", angle);
   while (angle < -90)
   {
     BT_read_gyro(GYRO_PORT, 0, &angle, &rate);

@@ -88,7 +88,7 @@ code that you have to complete in order to implement the localization algorithms
 
 #define COLOUR_DATA_FILE "colour_data.txt"
 #define COLOUR_PROBABILITIES_FILE "colour_probabilities.txt"
-#define DATA_PTS_PER_COLOUR 5
+#define DATA_PTS_PER_COLOUR 10
 #define READS_PER_DATA_PT 100
 
 void wait_ready_to_scan(void);
