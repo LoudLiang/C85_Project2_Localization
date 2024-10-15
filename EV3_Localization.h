@@ -72,6 +72,28 @@ code that you have to complete in order to implement the localization algorithms
 	#define HEXKEY "00:16:53:56:07:8a"	// <--- SET UP YOUR EV3's HEX ID here
 #endif
 
+typedef struct {
+  double Kp;
+  double Ki;
+  double Kd;
+
+  /* Output limits */
+  double limMin;
+	double limMax;
+
+  /* Controller "memory" */
+	// double integrator;
+  int prevError;
+	int prevErrorArr[10];
+	// double differentiator;
+	int prevMeasurement;
+  int arr_size;
+
+	/* Controller output */
+	double out;
+
+} PIDController;
+
 /*
   The ports associated with whatever sensors/motors
 */
@@ -112,5 +134,8 @@ int scan_intersection(int* coloursArrary, int *tl, int *tr, int *br, int *bl);
 int turn_at_intersection(int* coloursArray, int turn_direction);
 void calibrate_sensor(void);
 unsigned char *readPPMimage(const char *filename, int *rx, int*ry);
-
+void pid_straight_init(PIDController *pid);
+void pid_turn_init(PIDController *pid);
+double pid_controller_update(PIDController *pid, int error, int measurement);
+void rotate_gyro_to_centre(void);
 #endif

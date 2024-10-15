@@ -94,6 +94,12 @@ int map[400][4];            // This holds the representation of the map, up to 2
 int sx, sy;                 // Size of the map (number of intersections along x and y)
 double beliefs[400][4];     // Beliefs for each location and motion direction
 
+int straight_setpoint = 0;
+int turn_setpoint = 0; // TODO: CHANGE THIS
+
+PIDController *pid_straight;
+PIDController *pid_turn;
+
 /*
   SOUND SEQUENCES FOR COLOUR DETECTION
 */
@@ -154,7 +160,18 @@ int main(int argc, char *argv[])
  char mapname[1024];
  int dest_x, dest_y, rx, ry;
  unsigned char *map_image;
- 
+
+ pid_straight = (PIDController *)malloc(sizeof(PIDController));
+ pid_turn = (PIDController *)malloc(sizeof(PIDController));
+
+ if (pid_straight == NULL || pid_turn == NULL) {
+  fprintf(stderr, "Failed to allocate memory for PID controllers\n");
+  exit(1);
+ }
+
+ pid_straight_init(pid_straight);
+ pid_turn_init(pid_turn);
+
  memset(&map[0][0],0,400*4*sizeof(int));
  sx=0;
  sy=0;
@@ -179,7 +196,9 @@ int main(int argc, char *argv[])
     exit(1);
   }
 
-  calibrate_sensor();
+  // calibrate_sensor();
+  drive_along_street();
+  // BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
   
   // Cleanup and exit
   BT_close();
@@ -284,6 +303,8 @@ int main(int argc, char *argv[])
  // Cleanup and exit - DO NOT WRITE ANY CODE BELOW THIS LINE
  BT_close();
  free(map_image);
+ free(pid_straight);
+ free(pid_turn);
  exit(0);
 }
 
@@ -295,7 +316,32 @@ int find_street(void)
   * 
   * You can use the return value to indicate success or failure, or to inform the rest of your code of the state of your
   * bot after calling this function
-  */   
+  */ 
+
+ /*
+  * Idea: 
+  * 1. move forward by driving with both motors
+  * 2. continuously read the sensor
+  * 3. If red is detected:
+  *  - stop the motors
+  *  - turn right by 90 degrees (just assume, we can change this if there's a better angle)
+  *  - drive motors forward
+  *  - if red is detected, repeat Step 3 again.
+  * 4. If black is detected:
+  *  - stop the motors
+  *  - return 0
+  * 5. If yellow is detected:
+  *  - stop the motors
+  *  - return 1 (will use 1 to indicate this is an intersection).
+  * 6. (Implement a timeout to prevent infinite loop in case the street cannot be found, in this case return -1?)
+  * 
+  * Note: 
+  * - could take the average of multiple sensor readings to reduce noise
+  * - Still not sure what to return. We probably can return the state of the robot instead of -1,0,1.
+  * - since we are not on the sreet yet, do we really need to have pid control here?
+  */  
+
+
   return(0);
 }
 
@@ -313,9 +359,97 @@ int drive_along_street(void)
   * bot after calling this function.
   */   
 
-  // TO DO: return the colour value of where bot has stopped
-  //        i.e. REDCOLOR if stopped at border or YELLOWCOLOR if stopped at intersection
-  return(0);
+ /*
+  * Idea:
+  * 1. implement a PID controller to move forward by driving with both motors at a moderate speed
+  * 2. continuously read the sensor
+  * 3. If yellow is detected at the agnle around 90 degrees:
+  *  - stop the motors
+  *  - return 0
+  * 4. If red is detected at the agnle around 90 degrees:
+  *  - stop the motors
+  *  - turn 180 degrees
+  *  - drive motors forward
+  * (not sure if it will be an infinite loop)
+  * 5. If black is detected at the agnle around 90 degrees:
+  *  - keep moving forward
+  * 
+  * Similarly, I'm thinking of implementing a timeout to prevent infinite loop.
+  */
+
+  // TODO: CHANGE SPEED BASED ON REAL SITUATION
+ double base_speed = 20.0;
+ double max_speed = 80.0;
+ int angle = 0, rate;
+
+ // rotate_gyro_to_centre();
+ BT_drive(MOTOR_LEFT, MOTOR_RIGHT, base_speed);
+
+ int *colorArr = learning_colour_sensor();
+
+//  for (int m=0; m<1000; m++) {
+ while(1) {
+  // TODO: IMPLEMENT STOP CONDITION: seeing yellow?
+  int color = detect_and_classify_colour(colorArr);
+  if (color == YELLOWCOLOR) {
+   BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
+   BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
+   free(colorArr);
+   break;
+  } else if (color == REDCOLOR) {
+   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
+   BT_turn(MOTOR_LEFT, -20, MOTOR_RIGHT, 20);
+   while (angle > -180)
+   {
+     BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+     printf("angle %d\n", angle);
+   }
+  }
+  
+  BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+  fprintf(stderr, "JIOJOJOJGyro: %d\n", angle);
+  int error = angle - straight_setpoint;
+  double pid_out = pid_controller_update(pid_straight, error, angle);
+  
+  // TODO: CHANGE ADD/SUBSTRACT OUTPUT BSASED ON REAL SITUATION
+  double left_speed=base_speed, right_speed=base_speed;
+  if (error > 0) {
+   // bit right. Tweaking left.
+   // fprintf(stderr, "bit right. Tweaking left.Gyro: %d\n", angle);
+   left_speed = base_speed - pid_out;
+   right_speed = base_speed + pid_out;
+   // Limit speed
+   if (left_speed > max_speed) {
+    left_speed = max_speed;
+   } else if (left_speed < -max_speed) {
+    left_speed = -max_speed;
+   }
+  } else if (error < 0) {
+   // fprintf(stderr, "bit left. Tweaking right.Gyro: %d\n", angle);
+   left_speed = base_speed + pid_out;
+   right_speed = base_speed - pid_out;
+   // Limit speed
+   if (right_speed > max_speed) {
+    right_speed = max_speed;
+   } else if (right_speed < -max_speed) {
+    right_speed = -max_speed;
+   }
+  } else if (error == 0) {
+   continue;
+  }
+  
+
+  fprintf(stderr, "Left speed: %f, Right speed: %f, Gyro: %d\n", left_speed, right_speed, angle);
+  BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
+  BT_turn(MOTOR_LEFT, left_speed, MOTOR_RIGHT, right_speed);
+
+  // Small delay to control loop frequency
+  usleep(10000); 
+ }
+ BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
+ BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
+ free(colorArr);
+ return 0;
 }
 
 int scan_intersection(int*coloursArray, int *tl, int *tr, int *br, int *bl)
@@ -485,6 +619,26 @@ int turn_at_intersection(int* coloursArray, int turn_direction)
   * You can use the return value to indicate success or failure, or to inform your code of the state of the bot
   */
 
+ /*
+  * After scan_intersection, the color sensor cannot see any yellow.
+  * Idea:
+  * 1. if turn_direction=0:
+  *  - move a bit forward. This depends on the size of the robot.
+  *  - stop motors
+  *  - turn right by 90 degrees
+  *   - left motor forward, right motor backward
+  *  - use color sensor to check if the robot is on the street
+  *   - return 0 is black is detected in the expected range of angle
+  *   - If not, call helper function to adjust the robot's position. (`adjust_robot_pos`?). return 0 if successful.
+  *   - return -1 if timeout.
+  * 
+  * 2. if turn_direction=1: symmetrical to the above.
+  */
+
+  int angle = 0, rate;
+
+  BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
+  
   // turning left
   if (turn_direction)
   {
@@ -614,6 +768,24 @@ int go_to_target(int robot_x, int robot_y, int direction, int target_x, int targ
   * 
   * Return values: 1 if successful (the bot reached its target destination), 0 otherwise
   */   
+
+ /*
+  * Idea:
+  * 1. if robot_x==target_x and robot_y==target_y stop motors and return 0
+  * 2. if not at target location
+  *  - helper `plan_next_move` to determine the next move
+  *  - helper `update_robot_pos_dir` to update the robot's position and direction
+  *  - pseudo code:
+  *    int direction = plan_next_move(robot_x, robot_y, direction, target_x, target_y)
+  *    while(robot_x != target_x || robot_y != target_y)
+  *     drive_along_street()
+  *     scan_intersection()
+  *     if we need to turn then turn_at_intersection()
+  *     update_robot_pos_dir()
+  *     if robot_x==target_x and robot_y==target_y stop motors and return 0
+  *     next direction = plan_next_move(robot_x, robot_y, direction, target_x, target_y)
+  *    return 0
+  */
 
   /************************************************************************************************************************
    *   TO DO  -   Complete this function
@@ -1260,4 +1432,109 @@ unsigned char *readPPMimage(const char *filename, int *rx, int *ry)
  fclose(f);
 
  return(im);    
+}
+
+void pid_straight_init(PIDController *pid) {
+/* Clear controller variables */
+ pid->Kp = 0.3;
+ pid->Ki = 0.05;
+ pid->Kd = 0.2;
+
+ pid->limMin = -80.0;
+ pid->limMax = 80.0;
+
+	// pid->integrator = 0.0;
+ pid->prevError = 0;
+ pid->arr_size = 10;
+ for (int i = 0; i < 10; i++) {
+        pid->prevErrorArr[i] = 0.0;
+    }
+	// pid->differentiator = 0.0;
+	pid->prevMeasurement = 0;
+
+	pid->out = 0.0;
+}
+
+void pid_turn_init(PIDController *pid) {
+ pid->Kp = 0.0;
+ pid->Ki = 0.0;
+ pid->Kd = 0.0;
+ // TODO: complete this
+}
+
+double pid_controller_update(PIDController *pid, int error, int measurement) {
+ double propotional, integrator, differentiator;
+
+ // proportional
+ propotional = pid->Kp * error;
+
+ // integral
+ for (int i=0; i<pid->arr_size; i++) {
+  integrator += pid->prevErrorArr[i];
+ }
+ integrator = integrator * pid->Ki;
+
+ // derivative
+ differentiator = pid->Kd * (error - pid->prevError);
+
+ pid->out = propotional + integrator + differentiator;
+ fprintf(stderr, "P %.2f I %.2f D %.2f\n", propotional, integrator, differentiator);
+ fprintf(stderr, "out %.2f\n", pid->out);
+ if (pid->out > pid->limMax) {
+  pid->out = pid->limMax;
+ } else if (pid->out < pid->limMin) {
+  pid->out = pid->limMin;
+ }
+
+ pid->prevError = error;
+ for (int i=0; i<pid->arr_size; i++) {
+  if (pid->prevErrorArr[i] == 0) {
+   pid->prevErrorArr[i] = error;
+  }
+  else {
+   for(int j=1;j<pid->arr_size;j++) {
+    pid->prevErrorArr[j-1] = pid->prevErrorArr[j];
+   }
+   pid->prevErrorArr[pid->arr_size-1] = error;
+  }
+ }
+ pid->prevMeasurement = measurement;
+
+ return pid->out;
+}
+
+void rotate_gyro_to_centre() {
+ int angle, rate, power;
+ double err, prevErr, diff;
+
+ // rotate gyro all the way to the right
+ BT_motor_port_start(MOTOR_MIDDLE, 100);
+ BT_motor_port_stop(MOTOR_MIDDLE, 0);
+ fprintf(stderr, "rotating gyro to the right\n");
+
+ BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
+ fprintf(stderr, "angle %d rate of change %d\n", angle, rate);
+
+ // rotate until gyro at center
+ err = 90.0 - angle;
+ prevErr = err;
+ diff = 0;
+ while (abs(err) > 5)
+ {
+  printf("error %.2f\n", err);
+  power = (int)(60.0 * (err/90.0 + diff/100.0));
+  power = (power > 100) ? 100 : power;
+  power = (power < -100) ? -100 : power;
+  printf("power %d\n", power);
+
+  BT_motor_port_start(MOTOR_MIDDLE, power);
+
+  BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+
+  prevErr = err;
+  err = 90.0 - angle;
+  diff = err - prevErr;
+
+  BT_motor_port_stop(MOTOR_MIDDLE, 0);
+ }
 }
