@@ -84,9 +84,10 @@ typedef struct {
   /* Controller "memory" */
 	// double integrator;
   int prevError;
-	int[10] prevErrorArr;
+	int prevErrorArr[10];
 	// double differentiator;
 	int prevMeasurement;
+  int arr_size;
 
 	/* Controller output */
 	double out;
@@ -129,6 +130,6 @@ void calibrate_sensor(void);
 unsigned char *readPPMimage(const char *filename, int *rx, int*ry);
 void pid_straight_init(PIDController *pid);
 void pid_turn_init(PIDController *pid);
-void move_straight(void);
-void turn_robot(double degree);
+double pid_controller_update(PIDController *pid, int error, int measurement);
+void rotate_gyro_to_centre(void);
 #endif

@@ -106,8 +106,8 @@ int main(int argc, char *argv[])
  int dest_x, dest_y, rx, ry;
  unsigned char *map_image;
 
- pid_straight = malloc(sizeof(PIDController));
- pid_turn = malloc(sizeof(PIDController));
+ pid_straight = (PIDController *)malloc(sizeof(PIDController));
+ pid_turn = (PIDController *)malloc(sizeof(PIDController));
 
  if (pid_straight == NULL || pid_turn == NULL) {
   fprintf(stderr, "Failed to allocate memory for PID controllers\n");
@@ -141,7 +141,9 @@ int main(int argc, char *argv[])
     exit(1);
   }
 
-  calibrate_sensor();
+  // calibrate_sensor();
+  drive_along_street();
+  // BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
   
   // Cleanup and exit
   BT_close();
@@ -320,20 +322,42 @@ int drive_along_street(void)
  double max_speed = 80.0;
  int angle = 0, rate;
 
- BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
+ // rotate_gyro_to_centre();
  BT_drive(MOTOR_LEFT, MOTOR_RIGHT, base_speed);
 
+ int *colorArr = learning_colour_sensor();
+
+//  for (int m=0; m<1000; m++) {
  while(1) {
   // TODO: IMPLEMENT STOP CONDITION: seeing yellow?
+  int color = detect_and_classify_colour(colorArr);
+  if (color == YELLOWCOLOR) {
+   BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
+   BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
+   free(colorArr);
+   break;
+  } else if (color == REDCOLOR) {
+   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
+   BT_turn(MOTOR_LEFT, -20, MOTOR_RIGHT, 20);
+   while (angle > -180)
+   {
+     BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+     printf("angle %d\n", angle);
+   }
+  }
+  
   BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+  fprintf(stderr, "JIOJOJOJGyro: %d\n", angle);
   int error = angle - straight_setpoint;
-  double pid_out = pid_controller_update(pid_straight, straight_setpoint, angle);
-
+  double pid_out = pid_controller_update(pid_straight, error, angle);
+  
   // TODO: CHANGE ADD/SUBSTRACT OUTPUT BSASED ON REAL SITUATION
+  double left_speed=base_speed, right_speed=base_speed;
   if (error > 0) {
    // bit right. Tweaking left.
-   double left_speed = base_speed - pid_out;
-   double right_speed = base_speed + pid_out;
+   // fprintf(stderr, "bit right. Tweaking left.Gyro: %d\n", angle);
+   left_speed = base_speed - pid_out;
+   right_speed = base_speed + pid_out;
    // Limit speed
    if (left_speed > max_speed) {
     left_speed = max_speed;
@@ -341,8 +365,9 @@ int drive_along_street(void)
     left_speed = -max_speed;
    }
   } else if (error < 0) {
-   double left_speed = base_speed + pid_out;
-   double right_speed = base_speed - pid_out;
+   // fprintf(stderr, "bit left. Tweaking right.Gyro: %d\n", angle);
+   left_speed = base_speed + pid_out;
+   right_speed = base_speed - pid_out;
    // Limit speed
    if (right_speed > max_speed) {
     right_speed = max_speed;
@@ -352,15 +377,19 @@ int drive_along_street(void)
   } else if (error == 0) {
    continue;
   }
-  BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
-  BT_motor_port_start(MOTOR_LEFT, left_speed);
-  BT_motor_port_start(MOTOR_RIGHT, right_speed);
-  // usleep(100000);
-  // BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
   
+
+  fprintf(stderr, "Left speed: %f, Right speed: %f, Gyro: %d\n", left_speed, right_speed, angle);
+  BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
+  BT_turn(MOTOR_LEFT, left_speed, MOTOR_RIGHT, right_speed);
+
   // Small delay to control loop frequency
   usleep(10000); 
  }
+ BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
+ BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
+ free(colorArr);
+ return 0;
 }
 
 int scan_intersection(int *tl, int *tr, int *br, int *bl)
@@ -1201,17 +1230,19 @@ unsigned char *readPPMimage(const char *filename, int *rx, int *ry)
 
 void pid_straight_init(PIDController *pid) {
 /* Clear controller variables */
- pid->Kp = 0.2;
- pid->Ki = 0.005;
- pid->Kd = 0.1;
+ pid->Kp = 0.3;
+ pid->Ki = 0.05;
+ pid->Kd = 0.2;
 
  pid->limMin = -80.0;
  pid->limMax = 80.0;
 
 	// pid->integrator = 0.0;
-	pid->prevError = 0;
- pid->prevErrorArr = {0};
+ pid->prevError = 0;
  pid->arr_size = 10;
+ for (int i = 0; i < 10; i++) {
+        pid->prevErrorArr[i] = 0.0;
+    }
 	// pid->differentiator = 0.0;
 	pid->prevMeasurement = 0;
 
@@ -1233,7 +1264,7 @@ double pid_controller_update(PIDController *pid, int error, int measurement) {
 
  // integral
  for (int i=0; i<pid->arr_size; i++) {
-  integrator += pid->prevError[i];
+  integrator += pid->prevErrorArr[i];
  }
  integrator = integrator * pid->Ki;
 
@@ -1241,6 +1272,8 @@ double pid_controller_update(PIDController *pid, int error, int measurement) {
  differentiator = pid->Kd * (error - pid->prevError);
 
  pid->out = propotional + integrator + differentiator;
+ fprintf(stderr, "P %.2f I %.2f D %.2f\n", propotional, integrator, differentiator);
+ fprintf(stderr, "out %.2f\n", pid->out);
  if (pid->out > pid->limMax) {
   pid->out = pid->limMax;
  } else if (pid->out < pid->limMin) {
@@ -1262,4 +1295,40 @@ double pid_controller_update(PIDController *pid, int error, int measurement) {
  pid->prevMeasurement = measurement;
 
  return pid->out;
+}
+
+void rotate_gyro_to_centre() {
+ int angle, rate, power;
+ double err, prevErr, diff;
+
+ // rotate gyro all the way to the right
+ BT_motor_port_start(MOTOR_MIDDLE, 100);
+ BT_motor_port_stop(MOTOR_MIDDLE, 0);
+ fprintf(stderr, "rotating gyro to the right\n");
+
+ BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
+ fprintf(stderr, "angle %d rate of change %d\n", angle, rate);
+
+ // rotate until gyro at center
+ err = 90.0 - angle;
+ prevErr = err;
+ diff = 0;
+ while (abs(err) > 5)
+ {
+  printf("error %.2f\n", err);
+  power = (int)(60.0 * (err/90.0 + diff/100.0));
+  power = (power > 100) ? 100 : power;
+  power = (power < -100) ? -100 : power;
+  printf("power %d\n", power);
+
+  BT_motor_port_start(MOTOR_MIDDLE, power);
+
+  BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+
+  prevErr = err;
+  err = 90.0 - angle;
+  diff = err - prevErr;
+
+  BT_motor_port_stop(MOTOR_MIDDLE, 0);
+ }
 }
