@@ -105,52 +105,52 @@ PIDController *pid_turn;
 */
 const int tone_data[6][50][3] = {
   {
-    { 261, 1000, 20 },
+    { 261, 1000, 5 },
     { -1, -1, -1 }
   }, // BLACK
   {
-    { 415, 100, 20 },
-    { 415, 100, 20 },
-    { 415, 100, 20 },
-    { 415, 100, 20 },
-    { 392, 200, 20 },
-    { 392, 150, 20 },
-    { 392, 200, 20 },
-    { 311, 100, 20 },
-    { 293, 300, 20 },
+    { 415, 100, 5 },
+    { 415, 100, 5 },
+    { 415, 100, 5 },
+    { 415, 100, 5 },
+    { 392, 200, 5 },
+    { 392, 150, 5 },
+    { 392, 200, 5 },
+    { 311, 100, 5 },
+    { 293, 300, 5 },
     { -1, -1, -1 }
   }, // BLUE
   {
-    { 175, 200, 20 },
-    { 175, 200, 20 },
-    { 196, 200, 20 },
-    { 208, 200, 20 },
-    { 311, 200, 20 },
-    { 262, 250, 20 },
+    { 175, 200, 5 },
+    { 175, 200, 5 },
+    { 196, 200, 5 },
+    { 208, 200, 5 },
+    { 311, 200, 5 },
+    { 262, 250, 5 },
     { -1, -1, -1 }
   }, // GREEN
   {
-    { 261, 250, 20 },
-    { 293, 250, 20 },
-    { 329, 500, 20 },
+    { 261, 250, 5 },
+    { 293, 250, 5 },
+    { 329, 500, 5 },
     { -1, -1, -1 }
   }, // YELLOW
   {
-    { 293, 250, 20 },
-    { 277, 250, 20 },
-    { 293, 250, 20 },
-    { 277, 250, 20 },
+    { 293, 250, 5 },
+    { 277, 250, 5 },
+    { 293, 250, 5 },
+    { 277, 250, 5 },
     { -1, -1, -1 }
   }, // RED
   {
-    { 247, 100, 20 },
-    { 494, 100, 20 },
-    { 247, 100, 20 },
-    { 494, 100, 20 },
-    { 466, 100, 20 },
-    { 247, 100, 20 },
-    { 466, 100, 20 },
-    { 370, 200, 20 },
+    { 247, 100, 5 },
+    { 494, 100, 5 },
+    { 247, 100, 5 },
+    { 494, 100, 5 },
+    { 466, 100, 5 },
+    { 247, 100, 5 },
+    { 466, 100, 5 },
+    { 370, 200, 5 },
     { -1, -1, -1 }
   }  // WHITE
 };
@@ -196,9 +196,7 @@ int main(int argc, char *argv[])
     exit(1);
   }
 
-  // calibrate_sensor();
-  drive_along_street();
-  // BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
+  calibrate_sensor();
   
   // Cleanup and exit
   BT_close();
@@ -297,14 +295,16 @@ int main(int argc, char *argv[])
  //        robot to complete its task should be here.
  int tl, tr, br, bl;
 
- scan_intersection(coloursArray, &tl, &tr, &br, &bl);
- fprintf(stderr, "tl %d tr %d br %d bl %d\n", tl, tr, br, bl);
+//  drive_along_street();
+//  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
+//  fprintf(stderr, "tl %d tr %d br %d bl %d\n", tl, tr, br, bl);
+
+ free(pid_straight);
+ free(pid_turn);
 
  // Cleanup and exit - DO NOT WRITE ANY CODE BELOW THIS LINE
  BT_close();
  free(map_image);
- free(pid_straight);
- free(pid_turn);
  exit(0);
 }
 
@@ -382,28 +382,23 @@ int drive_along_street(void)
  double max_speed = 80.0;
  int angle = 0, rate, *colorArr;
 
+ BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
+
  // rotate_gyro_to_centre();
  BT_drive(MOTOR_LEFT, MOTOR_RIGHT, base_speed);
 
  reading_colour_data(colorArr);
 
-//  for (int m=0; m<1000; m++) {
- while(1) {
-  // TODO: IMPLEMENT STOP CONDITION: seeing yellow?
+ for (int m=0; m<1000; m++) {
+//  while(1) {
   int color = detect_and_classify_colour(colorArr);
   if (color == YELLOWCOLOR) {
-   BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
-   BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
-   free(colorArr);
    break;
   } else if (color == REDCOLOR) {
-   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
-   BT_turn(MOTOR_LEFT, -20, MOTOR_RIGHT, 20);
-   while (angle > -180)
-   {
-     BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
-     printf("angle %d\n", angle);
-   }
+   break;
+  } else if (color != BLACKCOLOR) {
+    // move the gyro sensor around to find the road and turn to that angle
+
   }
   
   BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
@@ -437,17 +432,16 @@ int drive_along_street(void)
   } else if (error == 0) {
    continue;
   }
-  
 
   fprintf(stderr, "Left speed: %f, Right speed: %f, Gyro: %d\n", left_speed, right_speed, angle);
   BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
   BT_turn(MOTOR_LEFT, left_speed, MOTOR_RIGHT, right_speed);
 
   // Small delay to control loop frequency
-  usleep(10000); 
+  usleep(100); 
  }
  BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
- BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
+ BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 1);
  return 0;
 }
 
@@ -494,7 +488,7 @@ int scan_intersection(int*coloursArray, int *tl, int *tr, int *br, int *bl)
   colour = wait_colour_change(coloursArray, YELLOWCOLOR);
 
   BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
-  BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
+  BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 1);
 
   // move the sensor to the right
   BT_motor_port_start(MOTOR_MIDDLE, 100);
@@ -517,7 +511,7 @@ int scan_intersection(int*coloursArray, int *tl, int *tr, int *br, int *bl)
     colour = wait_colour_change(coloursArray, BLACKCOLOR);
 
     BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
-    BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);  
+    BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 1);  
   }
 
   // scan the top left and top right colours
@@ -568,7 +562,7 @@ int wait_turn_angle(int turn_angle)
 */
 int turn(int* coloursArray, int turn_angle)
 {
-  int colour, angle, rate, lpow = 0, rpow = 0;
+  int colour, angle, rate, lpow = 0, rpow = 0, hitBlack = 0;
 
   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
   
@@ -586,18 +580,23 @@ int turn(int* coloursArray, int turn_angle)
     rpow = 20;
   }
 
+  fprintf(stderr, "left pow %d right pow %d\n", lpow, rpow);
   BT_turn(MOTOR_LEFT, lpow, MOTOR_RIGHT, rpow);
 
-  while (abs(turn_angle) < abs(angle))
+  while (abs(turn_angle) > abs(angle))
   {
     BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
     printf("angle %d\n", angle);
 
     // check if we've hit the road
-    colour = wait_colour_consistent(coloursArray);
-    if (colour == BLACKCOLOR || colour == YELLOWCOLOR)
+    if (abs(abs(turn_angle)-abs(angle)) < 40)
     {
-      break;
+      colour = wait_colour_consistent(coloursArray);
+      if (!hitBlack && (colour == BLACKCOLOR || colour == YELLOWCOLOR))
+      {
+        turn_angle = angle + 10;
+        hitBlack = 1;
+      }
     }
   }
   
@@ -895,7 +894,7 @@ int detect_and_classify_colour(int* coloursArray)
   double distance, closestDistance;
 
   // reads the colour sensor
-  read_colour_sensor(30, &R, &G, &B);
+  read_colour_sensor(10, &R, &G, &B);
   fprintf(stdout, "%d %d %d\n", R, G, B);
 
   // finds the closest colour
@@ -970,7 +969,7 @@ int wait_colour_consistent(int* coloursArray)
 */
 void scan_colours(int* coloursArray, int coloursDetected[3])
 {
-  int angle, rate, power, prevColour, i;
+  int angle, rate, power, prevColour, prevAngle, i;
   double err, prevErr, diff;
 
   // rotates gyro all the way to the right
@@ -991,14 +990,16 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
 
   // rotate all the way to the left
   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
-  BT_motor_port_start(MOTOR_MIDDLE,-100);  
-  BT_motor_port_stop(MOTOR_MIDDLE, 0);
+  BT_motor_port_start(MOTOR_MIDDLE,-80);
 
-  while (angle > -120)
+  prevAngle = angle - 1;
+  while (prevAngle != angle)
   {
+    prevAngle = angle;
     BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
-    printf("angle %d\n", angle);
+    printf("scan colours to left side angle %d\n", angle);
   }
+  BT_motor_port_stop(MOTOR_MIDDLE, 1);
 
   // scan colour (left)
   prevColour = 1;
@@ -1012,7 +1013,7 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
   BT_play_tone_sequence(tone_data[coloursDetected[0] - 1]);
 
   // rotate until gyro at center
-  BT_motor_port_start(MOTOR_MIDDLE, 35);
+  BT_motor_port_start(MOTOR_MIDDLE, 30);
   printf("angle %d less than -90\n", angle);
   while (angle < -90)
   {

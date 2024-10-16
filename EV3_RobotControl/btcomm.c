@@ -18,7 +18,7 @@
  * ********************************************************************************************************************/
 #include "btcomm.h"
 					     
-// #define __BT_debug			// Uncomment to trigger printing of BT messages for debug purposes
+#define __BT_debug			// Uncomment to trigger printing of BT messages for debug purposes
 
 // These are required to keep track of messages and help set state
 int message_id_counter=1;		// <-- This is a global message_id counter, used to keep track of
