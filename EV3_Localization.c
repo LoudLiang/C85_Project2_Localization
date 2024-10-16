@@ -98,7 +98,6 @@ int straight_setpoint = 0;
 int turn_setpoint = 0; // TODO: CHANGE THIS
 
 PIDController *pid_straight;
-PIDController *pid_turn;
 
 /*
   SOUND SEQUENCES FOR COLOUR DETECTION
@@ -286,25 +285,28 @@ int main(int argc, char *argv[])
  int coloursDetected[3];
 
  pid_straight = (PIDController *)malloc(sizeof(PIDController));
- pid_turn = (PIDController *)malloc(sizeof(PIDController));
 
- if (pid_straight == NULL || pid_turn == NULL) {
+ if (pid_straight == NULL) {
   fprintf(stderr, "Failed to allocate memory for PID controllers\n");
   free(pid_straight);
-  free(pid_turn);
   exit(1);
  }
 
  pid_straight_init(pid_straight);
- pid_turn_init(pid_turn);
 
+ BT_play_tone_sequence(tone_data[5]);
+
+ scan_intersection(coloursArray, &tl, &tr, &br, &bl);
 //  drive_along_street(coloursArray);
 //  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
- scan_colours(coloursArray, coloursDetected);
-//  fprintf(stderr, "tl %d tr %d br %d bl %d\n", tl, tr, br, bl);
+ fprintf(stderr, "tl %d tr %d br %d bl %d\n", tl, tr, br, bl);
+//  drive_along_street(coloursArray);
+//  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
+//  drive_along_street(coloursArray);
+//  turn_at_intersection(coloursArray, 0);
+//  turn_at_intersection(coloursArray, 1);
 
  free(pid_straight);
- free(pid_turn);
 
  // Cleanup and exit - DO NOT WRITE ANY CODE BELOW THIS LINE
  BT_close();
@@ -397,22 +399,7 @@ int drive_along_street(int *colorArr)
   if (color == YELLOWCOLOR) {
    break;
   } else if (color == REDCOLOR) {
-   break;
-  } else if (color != BLACKCOLOR) {
-    BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
-    BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 1); 
-
-    color = wait_colour_consistent(colorArr);
-
-    // rotate to the left
-    color = turn(colorArr, -30);
-
-    if (color != BLACKCOLOR)
-    {
-      // nothing on the left, go all the way right
-      turn(colorArr, -70);
-    }
-    BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
+    break;
   }
   
   BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
@@ -450,9 +437,6 @@ int drive_along_street(int *colorArr)
   fprintf(stderr, "Left speed: %f, Right speed: %f, Gyro: %d\n", left_speed, right_speed, angle);
   BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
   BT_turn(MOTOR_LEFT, left_speed, MOTOR_RIGHT, right_speed);
-
-  // Small delay to control loop frequency
-  usleep(100); 
  }
  BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
  BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 1);
@@ -492,7 +476,7 @@ int scan_intersection(int*coloursArray, int *tl, int *tr, int *br, int *bl)
   int colour, prevColour, coloursDetected[3];
 
   // scan the bottom left and bottom right colours
-  scan_colours(coloursArray, coloursDetected);
+  scan_colours(coloursArray, coloursDetected, YELLOWCOLOR);
   *(br) = coloursDetected[0];
   *(bl) = coloursDetected[2];
 
@@ -529,7 +513,7 @@ int scan_intersection(int*coloursArray, int *tl, int *tr, int *br, int *bl)
   }
 
   // scan the top left and top right colours
-  scan_colours(coloursArray, coloursDetected);
+  scan_colours(coloursArray, coloursDetected, BLACKCOLOR);
   *(tr) = coloursDetected[0];
   *(tl) = coloursDetected[2];
   
@@ -603,12 +587,12 @@ int turn(int* coloursArray, int turn_angle)
     printf("angle %d\n", angle);
 
     // check if we've hit the road
-    if (abs(abs(turn_angle)-abs(angle)) < 40)
+    if (abs(abs(turn_angle)-abs(angle)) < 25)
     {
-      colour = wait_colour_consistent(coloursArray);
+      colour = detect_and_classify_colour(coloursArray);
       if (!hitRoad && (colour == BLACKCOLOR || colour == YELLOWCOLOR))
       {
-        turn_angle = angle + 10;
+        turn_angle = angle + 5;
         hitRoad = 1;
       }
     }
@@ -981,7 +965,7 @@ int wait_colour_consistent(int* coloursArray)
   coloursDetected[1] = center colour
   coloursDetected[2] = right colour
 */
-void scan_colours(int* coloursArray, int coloursDetected[3])
+void scan_colours(int* coloursArray, int coloursDetected[3], int centerColour)
 {
   int angle, rate, power, prevColour, i;
   double err, prevErr, diff;
@@ -993,12 +977,12 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
   // wait until readings are the same so
   // we know we're at the end of the stopper (right)
   coloursDetected[2] = wait_colour_consistent(coloursArray);
-  // BT_play_tone_sequence(tone_data[coloursDetected[2] - 1]);
+  BT_play_tone_sequence(tone_data[coloursDetected[2] - 1]);
 
   // rotate all the way to the left
   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
   BT_motor_port_start(MOTOR_MIDDLE, -70);
-  while (angle > -140)
+  while (angle > -130)
   {
     usleep(1000000);
     BT_motor_port_start(MOTOR_MIDDLE, 1);
@@ -1010,11 +994,11 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
 
   // scan colour (left)
   coloursDetected[0] = wait_colour_consistent(coloursArray);
-  // BT_play_tone_sequence(tone_data[coloursDetected[0] - 1]);
+  BT_play_tone_sequence(tone_data[coloursDetected[0] - 1]);
 
   // rotate until gyro at center
   coloursDetected[1] = 0;
-  while (angle < -90 && coloursDetected[1] != BLACKCOLOR && coloursDetected[1] != YELLOWCOLOR)
+  while (angle < -90 && coloursDetected[1] != centerColour)
   {
     BT_motor_port_start(MOTOR_MIDDLE, -1);
     coloursDetected[1] = detect_and_classify_colour(coloursArray);
@@ -1024,7 +1008,7 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
     usleep(1000000);  
   }
   BT_motor_port_stop(MOTOR_MIDDLE, 1);
-  // BT_play_tone_sequence(tone_data[coloursDetected[1] - 1]);
+  BT_play_tone_sequence(tone_data[coloursDetected[1] - 1]);
 
   // reset gyro sensor to 0 since it's in the center
   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
@@ -1137,7 +1121,7 @@ void calibrate_sensor(void)
   // moves the gyro sensor to the middle and resets the angle count
   fprintf(stderr, "Centering colour sensor\n");
   wait_ready_to_scan();
-  scan_colours(coloursArray, coloursDetected);
+  scan_colours(coloursArray, coloursDetected, BLACKCOLOR);
   for (int j=0; j<3; j++) 
     fprintf(stderr, "colours detected %d %d %d\n", coloursDetected[0], coloursDetected[1], coloursDetected[2]);
 }
@@ -1444,19 +1428,12 @@ void pid_straight_init(PIDController *pid) {
  pid->prevError = 0;
  pid->arr_size = 10;
  for (int i = 0; i < 10; i++) {
-        pid->prevErrorArr[i] = 0.0;
+        pid->prevErrorArr[i] = 0;
     }
 	// pid->differentiator = 0.0;
 	pid->prevMeasurement = 0;
 
 	pid->out = 0.0;
-}
-
-void pid_turn_init(PIDController *pid) {
- pid->Kp = 0.0;
- pid->Ki = 0.0;
- pid->Kd = 0.0;
- // TODO: complete this
 }
 
 double pid_controller_update(PIDController *pid, int error, int measurement) {
@@ -1467,6 +1444,7 @@ double pid_controller_update(PIDController *pid, int error, int measurement) {
 
  // integral
  for (int i=0; i<pid->arr_size; i++) {
+  fprintf(stderr, "PrevErrorArr[%d]: %d\n", i, pid->prevErrorArr[i]);
   integrator += pid->prevErrorArr[i];
  }
  integrator = integrator * pid->Ki;
