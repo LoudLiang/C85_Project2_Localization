@@ -380,7 +380,7 @@ int drive_along_street(void)
   // TODO: CHANGE SPEED BASED ON REAL SITUATION
  double base_speed = 20.0;
  double max_speed = 80.0;
- int angle = 0, rate, *colorArr;
+ int angle = 0, rate, initialAngle, *colorArr;
 
  BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
 
@@ -397,8 +397,35 @@ int drive_along_street(void)
   } else if (color == REDCOLOR) {
    break;
   } else if (color != BLACKCOLOR) {
-    // move the gyro sensor around to find the road and turn to that angle
+    BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
+    BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 1); 
 
+    // wait until readings are the same so
+    // we know we're at the end of the stopper (right)
+    color = wait_colour_consistent(colorArr);
+
+    // rotate all the way to the left
+    BT_read_gyro(GYRO_PORT, 0, &initialAngle, &rate);
+    while(color != BLACKCOLOR || abs(abs(initialAngle)-abs(angle) < 40))
+    {
+      BT_motor_port_start(MOTOR_MIDDLE, 1);
+      BT_motor_port_start(MOTOR_MIDDLE, -5);
+      BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+      color = detect_and_classify_colour(colorArr);
+    }
+
+    if (color != BLACKCOLOR)
+    {
+      // nothing on the left, go all the way right
+      while(color != BLACKCOLOR)
+      {
+        BT_motor_port_start(MOTOR_MIDDLE, -1);
+        BT_motor_port_start(MOTOR_MIDDLE, 5);
+        BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
+        color = detect_and_classify_colour(colorArr);
+      }
+    }
+    turn(colorArr, angle - initialAngle);
   }
   
   BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
@@ -601,7 +628,7 @@ int turn(int* coloursArray, int turn_angle)
   }
   
   BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
-  BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 0);
+  BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 1);
 
   return(1);
 }
