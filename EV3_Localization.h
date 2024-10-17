@@ -72,6 +72,28 @@ code that you have to complete in order to implement the localization algorithms
 	#define HEXKEY "00:16:53:56:07:8a"	// <--- SET UP YOUR EV3's HEX ID here
 #endif
 
+typedef struct {
+  double Kp;
+  double Ki;
+  double Kd;
+
+  /* Output limits */
+  double limMin;
+	double limMax;
+
+  /* Controller "memory" */
+	// double integrator;
+  int prevError;
+	int prevErrorArr[10];
+	// double differentiator;
+	int prevMeasurement;
+  int arr_size;
+
+	/* Controller output */
+	double out;
+
+} PIDController;
+
 /*
   The ports associated with whatever sensors/motors
 */
@@ -88,23 +110,32 @@ code that you have to complete in order to implement the localization algorithms
 
 #define COLOUR_DATA_FILE "colour_data.txt"
 #define COLOUR_PROBABILITIES_FILE "colour_probabilities.txt"
-#define DATA_PTS_PER_COLOUR 5
+#define DATA_PTS_PER_COLOUR 10
 #define READS_PER_DATA_PT 100
 
+void wait_ready_to_scan(void);
+int wait_colour_change(int* coloursArray, int initialColour);
+int wait_colour_consistent(int* coloursArray);
+int wait_turn_angle(int turn_angle);
+
+int turn(int* coloursArray, int turn_angle);
 int* get_colour_dataPoint(int*coloursArray, int colour, int dataPoint);
-int* learning_colour_sensor(void);
+void reading_colour_data(int* coloursArray);
 void read_colour_sensor(int repetitions, int* R, int* G, int* B);
 int detect_and_classify_colour(int* coloursArray);
 void scan_colours(int* coloursArray, int coloursDetected[3]);
 
 int parse_map(unsigned char *map_img, int rx, int ry);
-int robot_localization(int *robot_x, int *robot_y, int *direction);
+int robot_localization(int *coloursArray, int *robot_x, int *robot_y, int *direction);
 int go_to_target(int robot_x, int robot_y, int direction, int target_x, int target_y);
 int find_street(void);
-int drive_along_street(void);
-int scan_intersection(int *tl, int *tr, int *br, int *bl);
-int turn_at_intersection(int turn_direction);
+int drive_along_street(int *colorArr);
+int scan_intersection(int* coloursArrary, int *tl, int *tr, int *br, int *bl);
+int turn_at_intersection(int* coloursArray, int turn_direction);
 void calibrate_sensor(void);
 unsigned char *readPPMimage(const char *filename, int *rx, int*ry);
-
+void pid_straight_init(PIDController *pid);
+void pid_turn_init(PIDController *pid);
+double pid_controller_update(PIDController *pid, int error, int measurement);
+void rotate_gyro_to_centre(void);
 #endif
