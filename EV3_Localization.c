@@ -297,6 +297,10 @@ int main(int argc, char *argv[])
  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
 //  drive_along_street(coloursArray);
 //  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
+ turn_at_intersection(coloursArray, 1);
+ drive_along_street(coloursArray);
+ scan_intersection(coloursArray, &tl, &tr, &br, &bl);
+ turn_at_intersection(coloursArray, 0);
  fprintf(stderr, "tl %d tr %d br %d bl %d\n", tl, tr, br, bl);
 //  drive_along_street(coloursArray);
 //  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
@@ -996,19 +1000,19 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
 
   // rotate until gyro at center
   coloursDetected[1] = 0;
-  while (angle < -90)
+  while (angle < -85)
   {
     BT_motor_port_start(MOTOR_MIDDLE, -1);
     coloursDetected[1] = detect_and_classify_colour(coloursArray);
-    BT_motor_port_start(MOTOR_MIDDLE, 10);
+    BT_motor_port_start(MOTOR_MIDDLE, 5);
     BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
     printf("angle %d\n", angle);
 
-    if (coloursDetected[1] == YELLOWCOLOR || (angle > -100 && coloursDetected[1] == BLACKCOLOR))
+    if (angle > -95 && (coloursDetected[1] == YELLOWCOLOR || coloursDetected[1] == BLACKCOLOR))
     {
       break;
     }
-    usleep(1000000);  
+    usleep(500000);  
   }
   BT_motor_port_stop(MOTOR_MIDDLE, 1);
   BT_play_tone_sequence(tone_data[coloursDetected[1] - 1]);
