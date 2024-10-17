@@ -503,21 +503,29 @@ int scan_intersection(int*coloursArray, int *tl, int *tr, int *br, int *bl)
     fprintf(stderr, "colour detected: %d\n", colour);
   }
 
-  // keep moving forward until no longer seeing black (street)
-  if (colour == BLACKCOLOR)
+  while (colour == BLACKCOLOR)
   {
-    BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 15);
+    // keep moving forward until no longer seeing black (street)
+    if (colour == BLACKCOLOR)
+    {
+      BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 15);
 
-    colour = wait_colour_change(coloursArray, BLACKCOLOR);
+      colour = wait_colour_change(coloursArray, BLACKCOLOR);
 
-    BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
-    BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 1);  
+      BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
+      BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 1);  
+    }
+
+    // scan the top left and top right colours
+    scan_colours(coloursArray, coloursDetected);
+    *(tr) = coloursDetected[0];
+    *(tl) = coloursDetected[2];
+
+    if (*tr == BLACKCOLOR && *tl == BLACKCOLOR)
+    {
+      colour = BLACKCOLOR;
+    }
   }
-
-  // scan the top left and top right colours
-  scan_colours(coloursArray, coloursDetected);
-  *(tr) = coloursDetected[0];
-  *(tl) = coloursDetected[2];
   
   return(1);
 }
@@ -1020,22 +1028,25 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
   coloursDetected[0] = wait_colour_consistent(coloursArray);
   BT_play_tone_sequence(tone_data[coloursDetected[0] - 1]);
 
+  BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
+
   // rotate until gyro at center
   coloursDetected[1] = 0;
-  while (angle < -85)
+  while (angle < 85)
   {
     BT_motor_port_start(MOTOR_MIDDLE, -1);
     coloursDetected[1] = detect_and_classify_colour(coloursArray);
-    BT_motor_port_start(MOTOR_MIDDLE, 5);
+    BT_motor_port_start(MOTOR_MIDDLE, 8);
     BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
-    printf("angle %d\n", angle);
+    fprintf(stderr, "angle %d\n", angle);
 
-    if (angle > -95 && (coloursDetected[1] == YELLOWCOLOR || coloursDetected[1] == BLACKCOLOR || coloursDetected[1] == REDCOLOR))
+    if (angle > 85 && (coloursDetected[1] == YELLOWCOLOR || coloursDetected[1] == BLACKCOLOR || coloursDetected[1] == REDCOLOR))
     {
       break;
     }
-    usleep(500000);  
+    usleep(1000000);  
   }
+  fprintf(stderr, "finished angle at %d\n", angle);
   BT_motor_port_stop(MOTOR_MIDDLE, 1);
   BT_play_tone_sequence(tone_data[coloursDetected[1] - 1]);
 
