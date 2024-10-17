@@ -295,10 +295,10 @@ int main(int argc, char *argv[])
  pid_straight_init(pid_straight);
 
  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
-//  drive_along_street(coloursArray);
-//  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
- turn_at_intersection(coloursArray, 1);
-//  drive_along_street(coloursArray);
+ drive_along_street(coloursArray);
+ scan_intersection(coloursArray, &tl, &tr, &br, &bl);
+//  turn_at_intersection(coloursArray, 1);
+ drive_along_street(coloursArray);
 //  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
 //  drive_along_street(coloursArray);
 //  turn_at_intersection(coloursArray, 0);
@@ -493,7 +493,7 @@ int scan_intersection(int*coloursArray, int *tl, int *tr, int *br, int *bl)
   BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 1);
 
   // move the sensor to the right
-  BT_motor_port_start(MOTOR_MIDDLE, 100);
+  BT_motor_port_start(MOTOR_MIDDLE, 70);
   BT_motor_port_stop(MOTOR_MIDDLE, 0);
 
   colour = wait_colour_consistent(coloursArray);
@@ -991,7 +991,7 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
   double err, prevErr, diff;
 
   // rotates gyro all the way to the right
-  BT_motor_port_start(MOTOR_MIDDLE, 80);
+  BT_motor_port_start(MOTOR_MIDDLE, 70);
   BT_motor_port_stop(MOTOR_MIDDLE, 0);
 
   // wait until readings are the same so
@@ -1002,11 +1002,11 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
   // rotate all the way to the left
   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
   BT_motor_port_start(MOTOR_MIDDLE, -70);
-  while (angle > -100)
+  while (angle > -70)
   {
     usleep(1000000);
     BT_motor_port_start(MOTOR_MIDDLE, 1);
-    BT_motor_port_start(MOTOR_MIDDLE, -40);
+    BT_motor_port_start(MOTOR_MIDDLE, -30);
     BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
     printf("scan colours to left side angle %d\n", angle);  
   }
@@ -1036,7 +1036,7 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
     usleep(1000000);  
   }
   fprintf(stderr, "finished angle at %d\n", angle);
-  BT_motor_port_stop(MOTOR_MIDDLE, 1);
+  BT_motor_port_stop(MOTOR_MIDDLE, 0);
   BT_play_tone_sequence(tone_data[coloursDetected[1] - 1]);
 
   // reset gyro sensor to 0 since it's in the center
