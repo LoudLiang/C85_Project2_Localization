@@ -138,4 +138,10 @@ void pid_straight_init(PIDController *pid);
 void pid_turn_init(PIDController *pid);
 double pid_controller_update(PIDController *pid, int error, int measurement);
 void rotate_gyro_to_centre(void);
+void normalize_beliefs(void);
+void print_beliefs(void);
+void test_localization(void);
+void update_beliefs(int tl, int tr, int br, int bl);
+void update_facing_beliefs(int colour, int p);
+void rotate_beliefs(int direction);
 #endif

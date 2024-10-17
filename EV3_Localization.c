@@ -198,7 +198,8 @@ int main(int argc, char *argv[])
   * ****************************************************************************************************************/
  
   int coloursArray[6*3*DATA_PTS_PER_COLOUR];
-  reading_colour_data(coloursArray);
+  //this line kept giving seg faults, had to comment it out for now
+  //reading_colour_data(coloursArray);
  
  // Your code for reading any calibration information should not go below this line //
  
@@ -212,6 +213,22 @@ int main(int argc, char *argv[])
  if (parse_map(map_image, rx, ry)==0)
  { 
   fprintf(stderr,"Unable to parse input image map. Make sure the image is properly formatted\n");
+  free(map_image);
+  exit(1);
+ }
+
+ //alternate mode for testing localization without the bot
+ //TODO: REMOVE THIS WHEN DONE
+ if (dest_x==-2&&dest_y==-2){
+  for (int j=0; j<sy; j++)
+    for (int i=0; i<sx; i++)
+    {
+      beliefs[i+(j*sx)][0]=1.0/(double)(sx*sy*4);
+      beliefs[i+(j*sx)][1]=1.0/(double)(sx*sy*4);
+      beliefs[i+(j*sx)][2]=1.0/(double)(sx*sy*4);
+      beliefs[i+(j*sx)][3]=1.0/(double)(sx*sy*4);
+    }
+  test_localization();
   free(map_image);
   exit(1);
  }
@@ -1534,4 +1551,226 @@ void rotate_gyro_to_centre() {
 
   BT_motor_port_stop(MOTOR_MIDDLE, 0);
  }
+}
+
+/*
+  Makes it so the sum of all beliefs is 1
+*/
+void normalize_beliefs()
+{
+  int i;
+  int j;
+  int k;
+  double sum = 0;
+
+  //find current sum of beliefs
+  for (i = 0; i < sy; i++){
+    for (j = 0; j < sx; j++){
+      for (k = 0; k < 4; k++) {
+        sum += beliefs[j+i*sx][k];
+      }
+    }
+  }
+
+  //divide each belief by the sum to normalize
+  for (i = 0; i < sy; i++){
+    for (j = 0; j < sx; j++){
+      for (k = 0; k < 4; k++) {
+        beliefs[j+i*sx][k] = beliefs[j+i*sx][k]/sum;
+      }
+    }
+  }
+  printf("Sum: %f\n", sum);
+}
+
+/*
+  Prints beliefs to be viewed for testing
+*/
+void print_beliefs()
+{
+  int i;
+  int j;
+  int k;
+
+  for (i = 0; i < sy; i++){
+    for (j = 0; j < sx; j++){
+      for (k = 0; k < 4; k++) {
+        printf("%f:", beliefs[j+i*sx][k]);
+      }
+      printf("   ");
+    }
+    printf("\n\n");
+  }
+}
+
+/*
+  Takes input from the user to simulate the bot moving
+  and scanner intersections, then uses that data to attempt to
+  localize
+*/
+void test_localization()
+/*
+  BLACKCOLOR   = 1,
+  BLUECOLOR    = 2,
+  GREENCOLOR   = 3,
+  YELLOWCOLOR  = 4,
+  REDCOLOR     = 5,
+  WHITECOLOR   = 6
+*/
+{
+  int tl, tr, bl, br;
+  int quit;
+  int angle;
+
+  while (quit != 1){
+    printf("Turn direction? (-1 for left, 1 for right, 0 for straight)\n");
+    scanf("%d", &angle);
+    if (angle != 0){
+      rotate_beliefs(angle);
+    }
+    printf("What colour is to the top left?:\n");
+    scanf("%d", &tl);
+    printf("Top right?:\n");
+    scanf("%d", &tr);
+    printf("Bottom right?:\n");
+    scanf("%d", &br);
+    printf("Bottom left?:\n");
+    scanf("%d", &bl);
+    update_beliefs(tl, tr, br, bl);
+    print_beliefs();
+    printf("Quit? (1/0):\n");
+    scanf("%d", &quit);
+  }
+}
+/*
+  Takes the colours seen at an intesection and updates beliefs
+  with that info
+*/
+void update_beliefs(int tl, int tr, int br, int bl)
+{
+  double beliefs_copy[400][4];
+  //TODO: add some kind of re-scan option for if 
+  //red, yellow of black are read, as building cannot be that colour
+
+  //creating a copy of beliefs to allow for shifting values around
+  for (int j = 0; j < sy; j++){
+    for (int i = 0; i <sx; i++){
+      for (int k = 0; k < 4; k++){
+        beliefs_copy[i+j*sx][k] = beliefs[i+j*sx][k];
+      }
+    }
+  }
+
+  //updates locations after the robot drove straight to
+  //get to an intesection
+  for (int j = 0; j < sy; j++){
+    for (int i = 0; i <sx; i++){
+      /*
+        if we are on the bottom edge of the map
+        facing up, then we were here facing down, 
+        but drove down and hit the border
+      */
+      if (j == sy - 1){
+        beliefs[i+j*sx][0] = beliefs_copy[i+j*sx][3];
+      }
+      else{
+        //if we are not on the bottom edge of the map,
+        //the chance of us being here facing up,
+        //is the chance of us being below this spot
+        //facing up
+        beliefs[i+j*sx][0] = beliefs_copy[i+(j+1)*sx][0];
+      }
+      
+      //similar logic as above, but for other facing directions
+      if (i==0){
+        beliefs[i+j*sx][1] = beliefs_copy[i+j*sx][3];
+      }
+      else{
+        beliefs[i+j*sx][1] = beliefs_copy[(i-1)+j*sx][1];
+      }
+
+      if (j == 0){
+        beliefs[i+j*sx][2] = beliefs_copy[i+j*sx][0];
+      }
+      else{
+        beliefs[i+j*sx][2] = beliefs_copy[i+(j-1)*sx][2];
+      }
+      
+      if (i == sx - 1){
+        beliefs[i+j*sx][3] = beliefs_copy[i+j*sx][1];
+      }
+      else{
+        beliefs[i+j*sx][3] = beliefs_copy[(i+1)+j*sx][3];
+      }
+    }
+  }
+
+  //updates based on colour of intersections
+  update_facing_beliefs(tl, 0);
+  update_facing_beliefs(tr, 3);
+  update_facing_beliefs(br, 2);
+  update_facing_beliefs(bl, 1);
+}
+
+/*
+  Updades beliefs given that the robot scans colour at position p
+  where for p:
+
+  0 = TOP LEFT
+  1 = TOP RIGHT
+  2 = BOTTOM RIGHT
+  3 = BOTTOM LEFT
+*/
+void update_facing_beliefs(int colour, int p){
+  //TODO: Replace error with error values for each colour
+  int error = 0.85;
+  int d;
+
+  for (int j = 0; j < sy; j++){
+      for (int i = 0; i <sx; i++){
+        for (int k = 0; k < 4; k++){
+          d = k + p;
+          if (d >= 4) d = d - 4;
+          if (map[i + j*sx][k] == colour){
+            beliefs[i + j*sx][d] *= error;
+          }
+          else {
+            beliefs[i + j*sx][d] *= (1-error);
+          }
+        }
+      }
+    }
+    normalize_beliefs();
+}
+
+/*
+  updates beliefs to reflect a 90 degree rotation
+  in direction, where -1 is left and 1 is right
+*/
+void rotate_beliefs(int direction){
+  double temp;
+  if (direction < 0){
+    for (int j = 0; j < sy; j++){
+      for (int i = 0; i <sx; i++){
+        temp = beliefs[i+j*sx][3];
+        for (int k = 3; k > 0; k--){
+          beliefs[i+j*sx][k] = beliefs[i+j*sx][k-1];
+        }
+        beliefs[i+j*sx][0] = temp;
+      }
+    }
+  }
+  else{
+    for (int j = 0; j < sy; j++){
+      for (int i = 0; i <sx; i++){
+        temp = beliefs[i+j*sx][0];
+        for (int k = 0; k < 3; k++){
+          beliefs[i+j*sx][k] = beliefs[i+j*sx][k+1];
+        }
+        beliefs[i+j*sx][3] = temp;
+      }
+    }
+  }
+  print_beliefs();
+  
 }
