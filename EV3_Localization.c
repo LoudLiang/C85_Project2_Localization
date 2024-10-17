@@ -889,17 +889,15 @@ void read_colour_sensor(int repetitions, int* R, int* G, int* B)
 */
 int detect_and_classify_colour(int* coloursArray)
 {
-  int colour, closestColour, R, G, B, i;
-  int *dataPoint;
-  double distance, closestDistance;
+  int colour, R, G, B, i, closestColour = 0;
+  int *dataPoint, closestColours[3] = { 0, 0, 0 }, frequency[6] = { 0, 0, 0, 0, 0, 0 };
+  double distance, closestDistances[3] = { 10000.0, 10000.0, 10000.0 };
 
   // reads the colour sensor
   read_colour_sensor(10, &R, &G, &B);
   fprintf(stdout, "%d %d %d\n", R, G, B);
 
-  // finds the closest colour
-  closestColour = 0;
-  closestDistance = 10000000.0;
+  // finds the closest 3 colours
   for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
   {
     for (i=1; i<=DATA_PTS_PER_COLOUR; i++)
@@ -908,12 +906,36 @@ int detect_and_classify_colour(int* coloursArray)
 
       distance = sqrt(pow(*dataPoint-R, 2) + pow(*(dataPoint+1)-G, 2) + pow(*(dataPoint+2)-B, 2));
 
-      if (distance < closestDistance)
+      if (distance < closestDistances[0])
       {
-        closestColour = colour;
-        closestDistance = distance;
+        closestDistances[1] = closestDistances[0];
+        closestColours[1] = closestColours[0];
+        closestDistances[0] = distance;
+        closestColours[0] = colour;  
+      }
+      else if (distance < closestDistances[1])
+      {
+        closestDistances[2] = closestDistances[1];
+        closestColours[2] = closestColours[1];
+        closestDistances[1] = distance;
+        closestColours[1] = colour;
+      }
+      else if (distance < closestDistances[2])
+      {
+        closestDistances[2] = distance;
+        closestColours[2] = colour;
       }
     }
+  }
+
+  // take the mode of the numbers
+  if (closestColours[1] == closestColours[2])
+  {
+    closestColour = closestColours[1];
+  }
+  else
+  {
+    closestColour = closestColours[0];
   }
 
   fprintf(stderr, "colour %d\n", closestColour);
@@ -1008,7 +1030,7 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
     BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
     printf("angle %d\n", angle);
 
-    if (angle > -95 && (coloursDetected[1] == YELLOWCOLOR || coloursDetected[1] == BLACKCOLOR))
+    if (angle > -95 && (coloursDetected[1] == YELLOWCOLOR || coloursDetected[1] == BLACKCOLOR || coloursDetected[1] == REDCOLOR))
     {
       break;
     }
