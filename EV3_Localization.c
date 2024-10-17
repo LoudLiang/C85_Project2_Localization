@@ -294,8 +294,6 @@ int main(int argc, char *argv[])
 
  pid_straight_init(pid_straight);
 
- BT_play_tone_sequence(tone_data[5]);
-
  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
 //  drive_along_street(coloursArray);
 //  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
@@ -476,7 +474,7 @@ int scan_intersection(int*coloursArray, int *tl, int *tr, int *br, int *bl)
   int colour, prevColour, coloursDetected[3];
 
   // scan the bottom left and bottom right colours
-  scan_colours(coloursArray, coloursDetected, YELLOWCOLOR);
+  scan_colours(coloursArray, coloursDetected);
   *(br) = coloursDetected[0];
   *(bl) = coloursDetected[2];
 
@@ -513,7 +511,7 @@ int scan_intersection(int*coloursArray, int *tl, int *tr, int *br, int *bl)
   }
 
   // scan the top left and top right colours
-  scan_colours(coloursArray, coloursDetected, BLACKCOLOR);
+  scan_colours(coloursArray, coloursDetected);
   *(tr) = coloursDetected[0];
   *(tl) = coloursDetected[2];
   
@@ -965,7 +963,7 @@ int wait_colour_consistent(int* coloursArray)
   coloursDetected[1] = center colour
   coloursDetected[2] = right colour
 */
-void scan_colours(int* coloursArray, int coloursDetected[3], int centerColour)
+void scan_colours(int* coloursArray, int coloursDetected[3])
 {
   int angle, rate, power, prevColour, i;
   double err, prevErr, diff;
@@ -998,13 +996,18 @@ void scan_colours(int* coloursArray, int coloursDetected[3], int centerColour)
 
   // rotate until gyro at center
   coloursDetected[1] = 0;
-  while (angle < -90 && coloursDetected[1] != centerColour)
+  while (angle < -90)
   {
     BT_motor_port_start(MOTOR_MIDDLE, -1);
     coloursDetected[1] = detect_and_classify_colour(coloursArray);
     BT_motor_port_start(MOTOR_MIDDLE, 10);
     BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
     printf("angle %d\n", angle);
+
+    if (coloursDetected[1] == YELLOWCOLOR || (angle > -100 && coloursDetected[1] == BLACKCOLOR))
+    {
+      break;
+    }
     usleep(1000000);  
   }
   BT_motor_port_stop(MOTOR_MIDDLE, 1);
@@ -1121,7 +1124,7 @@ void calibrate_sensor(void)
   // moves the gyro sensor to the middle and resets the angle count
   fprintf(stderr, "Centering colour sensor\n");
   wait_ready_to_scan();
-  scan_colours(coloursArray, coloursDetected, BLACKCOLOR);
+  scan_colours(coloursArray, coloursDetected);
   for (int j=0; j<3; j++) 
     fprintf(stderr, "colours detected %d %d %d\n", coloursDetected[0], coloursDetected[1], coloursDetected[2]);
 }
