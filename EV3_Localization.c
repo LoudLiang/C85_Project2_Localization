@@ -298,9 +298,10 @@ int main(int argc, char *argv[])
 //  drive_along_street(coloursArray);
 //  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
  turn_at_intersection(coloursArray, 1);
- drive_along_street(coloursArray);
- scan_intersection(coloursArray, &tl, &tr, &br, &bl);
- turn_at_intersection(coloursArray, 0);
+//  drive_along_street(coloursArray);
+//  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
+//  drive_along_street(coloursArray);
+//  turn_at_intersection(coloursArray, 0);
  fprintf(stderr, "tl %d tr %d br %d bl %d\n", tl, tr, br, bl);
 //  drive_along_street(coloursArray);
 //  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
@@ -486,6 +487,7 @@ int scan_intersection(int*coloursArray, int *tl, int *tr, int *br, int *bl)
   BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 15);
 
   colour = wait_colour_change(coloursArray, YELLOWCOLOR);
+  fprintf(stderr, "moving until no longer on yellow: %d\n", colour);
 
   BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
   BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 1);
@@ -494,39 +496,25 @@ int scan_intersection(int*coloursArray, int *tl, int *tr, int *br, int *bl)
   BT_motor_port_start(MOTOR_MIDDLE, 100);
   BT_motor_port_stop(MOTOR_MIDDLE, 0);
 
-  prevColour = 1;
-  while (prevColour != colour)
-  {
-    prevColour = colour;
+  colour = wait_colour_consistent(coloursArray);
 
-    colour = detect_and_classify_colour(coloursArray);
-    fprintf(stderr, "colour detected: %d\n", colour);
+  // keep moving forward until no longer seeing black (street)
+  if (colour == BLACKCOLOR)
+  {
+    BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 15);
+
+    colour = wait_colour_change(coloursArray, BLACKCOLOR);
+    fprintf(stderr, "changed to colour %d\n", colour);
+
+    BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
+    BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 1);  
   }
 
-  while (colour == BLACKCOLOR)
-  {
-    // keep moving forward until no longer seeing black (street)
-    if (colour == BLACKCOLOR)
-    {
-      BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 15);
+  // scan the top left and top right colours
+  scan_colours(coloursArray, coloursDetected);
+  *(tr) = coloursDetected[0];
+  *(tl) = coloursDetected[2];
 
-      colour = wait_colour_change(coloursArray, BLACKCOLOR);
-
-      BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
-      BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 1);  
-    }
-
-    // scan the top left and top right colours
-    scan_colours(coloursArray, coloursDetected);
-    *(tr) = coloursDetected[0];
-    *(tl) = coloursDetected[2];
-
-    if (*tr == BLACKCOLOR && *tl == BLACKCOLOR)
-    {
-      colour = BLACKCOLOR;
-    }
-  }
-  
   return(1);
 }
 
@@ -600,7 +588,7 @@ int turn(int* coloursArray, int turn_angle)
     if (abs(abs(turn_angle)-abs(angle)) < 25)
     {
       colour = detect_and_classify_colour(coloursArray);
-      if (!hitRoad && (colour == BLACKCOLOR || colour == YELLOWCOLOR))
+      if (!hitRoad && (colour == BLACKCOLOR))
       {
         turn_angle = angle + 5;
         hitRoad = 1;
@@ -1014,7 +1002,7 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
   // rotate all the way to the left
   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
   BT_motor_port_start(MOTOR_MIDDLE, -70);
-  while (angle > -130)
+  while (angle > -100)
   {
     usleep(1000000);
     BT_motor_port_start(MOTOR_MIDDLE, 1);
@@ -1028,8 +1016,9 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
   coloursDetected[0] = wait_colour_consistent(coloursArray);
   BT_play_tone_sequence(tone_data[coloursDetected[0] - 1]);
 
+  angle = 0;
   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
-
+  fprintf(stderr, "RESETangle %d\n", angle);
   // rotate until gyro at center
   coloursDetected[1] = 0;
   while (angle < 85)
@@ -1040,7 +1029,7 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
     BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
     fprintf(stderr, "angle %d\n", angle);
 
-    if (angle > 85 && (coloursDetected[1] == YELLOWCOLOR || coloursDetected[1] == BLACKCOLOR || coloursDetected[1] == REDCOLOR))
+    if (angle > 75 && (coloursDetected[1] == YELLOWCOLOR || coloursDetected[1] == BLACKCOLOR || coloursDetected[1] == REDCOLOR))
     {
       break;
     }
