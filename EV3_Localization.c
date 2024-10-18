@@ -1592,6 +1592,7 @@ void print_beliefs()
   int j;
   int k;
 
+  printf("Current Beliefs (UP:RIGHT:DOWN:LEFT)\n");
   for (i = 0; i < sy; i++){
     for (j = 0; j < sx; j++){
       for (k = 0; k < 4; k++) {
@@ -1622,12 +1623,17 @@ void test_localization()
   int quit;
   int angle;
 
+  printf("\nThis is a simulation to test the localization algorithm.\n");
+  printf("Looking at the map, choose a space for the bot to start and keep track of it\n");
+  printf("The bot will assume that when it hits an edge, it rotates 180 degrees and returns to the intersection,\n");
+  printf("There is no need to input the 180 rotation\n");
   while (quit != 1){
     printf("Turn direction? (-1 for left, 1 for right, 0 for straight)\n");
     scanf("%d", &angle);
     if (angle != 0){
       rotate_beliefs(angle);
     }
+    printf("The bot now drives straight along the road to an intersection\n");
     printf("What colour is to the top left?:\n");
     scanf("%d", &tl);
     printf("Top right?:\n");
@@ -1641,6 +1647,7 @@ void test_localization()
     printf("Quit? (1/0):\n");
     scanf("%d", &quit);
   }
+  //TODO: add something to see when we are fairly sure the bot is at a specific location
 }
 /*
   Takes the colours seen at an intesection and updates beliefs
@@ -1667,7 +1674,8 @@ void update_beliefs(int tl, int tr, int br, int bl)
     for (int i = 0; i <sx; i++){
       /*
         if we are on the bottom edge of the map
-        facing up, then we were here facing down, 
+        facing up, the chance of being here is 
+        the chance we were here facing down, 
         but drove down and hit the border
       */
       if (j == sy - 1){
@@ -1713,34 +1721,38 @@ void update_beliefs(int tl, int tr, int br, int bl)
 }
 
 /*
-  Updades beliefs given that the robot scans colour at position p
-  where for p:
+  Updades beliefs given that the robot scans colour at position
+  where for position:
 
   0 = TOP LEFT
-  1 = TOP RIGHT
+  1 = BOTTOM LEFT
   2 = BOTTOM RIGHT
-  3 = BOTTOM LEFT
+  3 = TOP RIGHT
 */
-void update_facing_beliefs(int colour, int p){
+void update_facing_beliefs(int colour, int position){
   //TODO: Replace error with error values for each colour
-  int error = 0.85;
-  int d;
+  double error = 0.85;
+  int direction;  //the direction the robot would be facing in order to scan colour at position
 
   for (int j = 0; j < sy; j++){
-      for (int i = 0; i <sx; i++){
-        for (int k = 0; k < 4; k++){
-          d = k + p;
-          if (d >= 4) d = d - 4;
-          if (map[i + j*sx][k] == colour){
-            beliefs[i + j*sx][d] *= error;
-          }
-          else {
-            beliefs[i + j*sx][d] *= (1-error);
-          }
+    for (int i = 0; i <sx; i++){
+      for (int building = 0; building < 4; building++){
+        direction = (building + position) % 4;
+        if (map[i + j*sx][building] == colour){
+          //the scanned colour matches the building so multiply
+          //belief by the chance the colour is correct
+          beliefs[i + j*sx][direction] *= error;
+        }
+        else {
+          //the scanned colour does not match the building
+          //so multiply the belief by the chance the colour is wrong
+          beliefs[i + j*sx][direction] *= (1-error);
         }
       }
     }
-    normalize_beliefs();
+  }
+  //make sure the sum of all beliefs remains 1
+  normalize_beliefs();
 }
 
 /*
@@ -1748,10 +1760,12 @@ void update_facing_beliefs(int colour, int p){
   in direction, where -1 is left and 1 is right
 */
 void rotate_beliefs(int direction){
-  double temp;
+  double temp;  //used to temporarily store a believe value while it's being moved around
+
   if (direction < 0){
     for (int j = 0; j < sy; j++){
       for (int i = 0; i <sx; i++){
+        //shift all directional beliefs one to the left
         temp = beliefs[i+j*sx][3];
         for (int k = 3; k > 0; k--){
           beliefs[i+j*sx][k] = beliefs[i+j*sx][k-1];
@@ -1763,6 +1777,7 @@ void rotate_beliefs(int direction){
   else{
     for (int j = 0; j < sy; j++){
       for (int i = 0; i <sx; i++){
+        //shift all directional beliefs one to the right
         temp = beliefs[i+j*sx][0];
         for (int k = 0; k < 3; k++){
           beliefs[i+j*sx][k] = beliefs[i+j*sx][k+1];
