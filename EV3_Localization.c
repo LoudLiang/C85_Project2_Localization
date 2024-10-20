@@ -317,7 +317,13 @@ int main(int argc, char *argv[])
  exit(0);
 }
 
-int find_street(void)   
+
+void align_street(int* coloursArray) {
+ 
+}
+
+
+int find_street(int* coloursArray)   
 {
  /*
   * This function gets your robot onto a street, wherever it is placed on the map. You can do this in many ways, but think
@@ -329,29 +335,36 @@ int find_street(void)
 
  /*
   * Idea: 
-  * 1. move forward by driving with both motors
-  * 2. continuously read the sensor
-  * 3. If red is detected:
-  *  - stop the motors
-  *  - turn right by 90 degrees (just assume, we can change this if there's a better angle)
-  *  - drive motors forward
-  *  - if red is detected, repeat Step 3 again.
-  * 4. If black is detected:
-  *  - stop the motors
-  *  - return 0
-  * 5. If yellow is detected:
-  *  - stop the motors
-  *  - return 1 (will use 1 to indicate this is an intersection).
-  * 6. (Implement a timeout to prevent infinite loop in case the street cannot be found, in this case return -1?)
-  * 
-  * Note: 
-  * - could take the average of multiple sensor readings to reduce noise
-  * - Still not sure what to return. We probably can return the state of the robot instead of -1,0,1.
-  * - since we are not on the sreet yet, do we really need to have pid control here?
+  * 1. reset beliefs
+  * 2. turn clockwise until hit black or yellow
+  * 3. if hit black or yellow, call align_street to make it align to the street
+  * 4. if hit red, turn 90 degrees clockwise and do find_street again
   */  
+  
+  // reset beliefs
+ for (int j=0; j<sy; j++){
+  for (int i=0; i<sx; i++)
+  {
+   beliefs[i+(j*sx)][0]=1.0/(double)(sx*sy*4);
+   beliefs[i+(j*sx)][1]=1.0/(double)(sx*sy*4);
+   beliefs[i+(j*sx)][2]=1.0/(double)(sx*sy*4);
+   beliefs[i+(j*sx)][3]=1.0/(double)(sx*sy*4);
+  }
+ }
 
-
-  return(0);
+ int angle = 0, rate, color;
+ while(1) {
+  color = detect_and_classify_colour(coloursArray);
+  if (color == BLACKCOLOR || color == YELLOWCOLOR) {
+   break;
+  } else if (color == REDCOLOR) {
+   turn(coloursArray, 90);
+   // call find_street again, since we need to reset beliefs and angles in this case
+   find_street(coloursArray);
+  }
+ }
+ align_street(coloursArray);
+ return 0;
 }
 
 int drive_along_street(int *colorArr)
@@ -368,25 +381,6 @@ int drive_along_street(int *colorArr)
   * bot after calling this function.
   */   
 
- /*
-  * Idea:
-  * 1. implement a PID controller to move forward by driving with both motors at a moderate speed
-  * 2. continuously read the sensor
-  * 3. If yellow is detected at the agnle around 90 degrees:
-  *  - stop the motors
-  *  - return 0
-  * 4. If red is detected at the agnle around 90 degrees:
-  *  - stop the motors
-  *  - turn 180 degrees
-  *  - drive motors forward
-  * (not sure if it will be an infinite loop)
-  * 5. If black is detected at the agnle around 90 degrees:
-  *  - keep moving forward
-  * 
-  * Similarly, I'm thinking of implementing a timeout to prevent infinite loop.
-  */
-
-  // TODO: CHANGE SPEED BASED ON REAL SITUATION
  double base_speed = 20.0;
  double max_speed = 80.0;
  int angle = 0, rate;

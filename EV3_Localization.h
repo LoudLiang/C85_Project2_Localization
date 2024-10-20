@@ -128,7 +128,7 @@ void scan_colours(int* coloursArray, int coloursDetected[3]);
 int parse_map(unsigned char *map_img, int rx, int ry);
 int robot_localization(int *coloursArray, int *robot_x, int *robot_y, int *direction);
 int go_to_target(int robot_x, int robot_y, int direction, int target_x, int target_y);
-int find_street(void);
+int find_street(int* coloursArray);
 int drive_along_street(int *colorArr);
 int scan_intersection(int* coloursArrary, int *tl, int *tr, int *br, int *bl);
 int turn_at_intersection(int* coloursArray, int turn_direction);
@@ -138,4 +138,5 @@ void pid_straight_init(PIDController *pid);
 void pid_turn_init(PIDController *pid);
 double pid_controller_update(PIDController *pid, int error, int measurement);
 void rotate_gyro_to_centre(void);
+void align_street(int* coloursArray);
 #endif
