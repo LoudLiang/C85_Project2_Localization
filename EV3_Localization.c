@@ -95,7 +95,7 @@ int sx, sy;                 // Size of the map (number of intersections along x 
 double beliefs[400][4];     // Beliefs for each location and motion direction
 
 int straight_setpoint = 0;
-int turn_setpoint = 0; // TODO: CHANGE THIS
+int last_turn_direction = 0; // -1 for left, 1 for right
 
 PIDController *pid_straight;
 
@@ -319,7 +319,40 @@ int main(int argc, char *argv[])
 
 
 void align_street(int* coloursArray) {
+ int color, driving_step=0;
+ double drive_speed = 10.0;
+ if (last_turn_direction == 1) {
+  BT_timed_motor_port_start_v2(MOTOR_RIGHT, drive_speed, 500);
+ } else if (last_turn_direction == -1) {
+  BT_timed_motor_port_start_v2(MOTOR_LEFT, drive_speed, 500);
+ }
+ BT_all_stop(1);
+ color = detect_and_classify_colour(coloursArray);
+
+ while (1){
+  while(color != BLACKCOLOR && color != YELLOWCOLOR) {
+   if (last_turn_direction == 1) {
+    turn(coloursArray, -5);
+   } else if (last_turn_direction == -1) {
+    turn(coloursArray, 5);
+   }
+   color = detect_and_classify_colour(coloursArray);
+   usleep(1000000);
+  }
+
+  while(driving_step < 20) {
+   BT_drive(MOTOR_LEFT, MOTOR_RIGHT, drive_speed);
+   driving_step++;
+   color = detect_and_classify_colour(coloursArray);
+   if (color != BLACKCOLOR && color != YELLOWCOLOR) {
+    driving_step = 0;
+    continue;
+   }
+  }
+  return;
+ }
  
+
 }
 
 
@@ -341,7 +374,8 @@ int find_street(int* coloursArray)
   * 4. if hit red, turn 90 degrees clockwise and do find_street again
   */  
   
-  // reset beliefs
+ double drive_speed = 10.0;
+ // reset beliefs
  for (int j=0; j<sy; j++){
   for (int i=0; i<sx; i++)
   {
@@ -352,17 +386,55 @@ int find_street(int* coloursArray)
   }
  }
 
- int angle = 0, rate, color;
  while(1) {
+  int angle = 0, rate, color, turn_count=0;
   color = detect_and_classify_colour(coloursArray);
-  if (color == BLACKCOLOR || color == YELLOWCOLOR) {
-   break;
-  } else if (color == REDCOLOR) {
-   turn(coloursArray, 90);
-   // call find_street again, since we need to reset beliefs and angles in this case
-   find_street(coloursArray);
+
+  while (!(color == BLACKCOLOR || color == YELLOWCOLOR)) {
+   if (turn_count > 60) {
+    fprintf(stderr, "lost\n");
+    return -1;
+   }
+
+   if (color == REDCOLOR) {
+    fprintf(stderr, "HIT RED\n");
+    turn(coloursArray, 90);
+    break;
+   }
+   // turning clockwise
+   turn(coloursArray, 10);
+   turn_count++;
+   usleep(1000000);
   }
+  // hit black or yellow
+  // oscillate to keep moving on the street
+  color = detect_and_classify_colour(coloursArray);
+  while (1) {
+   BT_all_stop(1);
+   usleep(1000000);
+   int black_steps = 0;
+
+   while(color == BLACKCOLOR || color == YELLOWCOLOR) {
+    if (black_steps >= 10) {
+     BT_all_stop(1);
+     return 0;
+    }
+    BT_drive(MOTOR_LEFT, MOTOR_RIGHT, drive_speed);
+    color = detect_and_classify_colour(coloursArray);
+    black_steps++;
+   }
+
+   if (color == REDCOLOR) {
+    color = turn(coloursArray, 90);
+    continue;
+   }
+   // turn counter-clockwise until we hit black
+   color = turn(coloursArray, -3);
+  }
+
+  if (black_steps >= 10) break;
  }
+ BT_all_stop(1);
  align_street(coloursArray);
  return 0;
 }
@@ -430,7 +502,6 @@ int drive_along_street(int *colorArr)
   } else if (error == 0) {
    continue;
   }
-
   fprintf(stderr, "Left speed: %f, Right speed: %f, Gyro: %d\n", left_speed, right_speed, angle);
   BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
   BT_turn(MOTOR_LEFT, left_speed, MOTOR_RIGHT, right_speed);
@@ -554,6 +625,8 @@ int turn(int* coloursArray, int turn_angle)
 {
   int colour = 0, angle, rate, lpow = 0, rpow = 0, hitRoad = 0;
 
+  if (angle > 0) last_turn_direction = 1;
+  else if (angle < 0) last_turn_direction = -1;
   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
   
   // turning clockwise
