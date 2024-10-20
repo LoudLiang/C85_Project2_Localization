@@ -299,10 +299,10 @@ int main(int argc, char *argv[])
 //  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
 //  turn_at_intersection(coloursArray, 1);
 //  drive_along_street(coloursArray);
- scan_intersection(coloursArray, &tl, &tr, &br, &bl);
+//  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
 //  drive_along_street(coloursArray);
- turn_at_intersection(coloursArray, 0);
- fprintf(stderr, "tl %d tr %d br %d bl %d\n", tl, tr, br, bl);
+//  turn_at_intersection(coloursArray, 0);
+//  fprintf(stderr, "tl %d tr %d br %d bl %d\n", tl, tr, br, bl);
 //  drive_along_street(coloursArray);
 //  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
 //  drive_along_street(coloursArray);
@@ -431,8 +431,6 @@ int find_street(int* coloursArray)
    // turn counter-clockwise until we hit black
    color = turn(coloursArray, -3);
   }
-
-  if (black_steps >= 10) break;
  }
  BT_all_stop(1);
  align_street(coloursArray);
@@ -774,7 +772,7 @@ int robot_localization(int *coloursArray, int *robot_x, int *robot_y, int *direc
   int colour, tl, tr, br, bl;
 
   // center the bot onto a street
-  find_street();
+  find_street(coloursArray);
 
   // drive along the street until you hit an intersection
   colour = drive_along_street(coloursArray);
