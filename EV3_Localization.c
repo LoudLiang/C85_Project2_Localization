@@ -308,6 +308,7 @@ int main(int argc, char *argv[])
 //  drive_along_street(coloursArray);
 //  turn_at_intersection(coloursArray, 0);
 //  turn_at_intersection(coloursArray, 1);
+ find_street(coloursArray);
 
  free(pid_straight);
 
@@ -315,44 +316,6 @@ int main(int argc, char *argv[])
  BT_close();
  free(map_image);
  exit(0);
-}
-
-
-void align_street(int* coloursArray) {
- int color, driving_step=0;
- double drive_speed = 10.0;
- if (last_turn_direction == 1) {
-  BT_timed_motor_port_start_v2(MOTOR_RIGHT, drive_speed, 500);
- } else if (last_turn_direction == -1) {
-  BT_timed_motor_port_start_v2(MOTOR_LEFT, drive_speed, 500);
- }
- BT_all_stop(1);
- color = detect_and_classify_colour(coloursArray);
-
- while (1){
-  while(color != BLACKCOLOR && color != YELLOWCOLOR) {
-   if (last_turn_direction == 1) {
-    turn(coloursArray, -5);
-   } else if (last_turn_direction == -1) {
-    turn(coloursArray, 5);
-   }
-   color = detect_and_classify_colour(coloursArray);
-   usleep(1000000);
-  }
-
-  while(driving_step < 20) {
-   BT_drive(MOTOR_LEFT, MOTOR_RIGHT, drive_speed);
-   driving_step++;
-   color = detect_and_classify_colour(coloursArray);
-   if (color != BLACKCOLOR && color != YELLOWCOLOR) {
-    driving_step = 0;
-    continue;
-   }
-  }
-  return;
- }
- 
-
 }
 
 
@@ -365,14 +328,6 @@ int find_street(int* coloursArray)
   * You can use the return value to indicate success or failure, or to inform the rest of your code of the state of your
   * bot after calling this function
   */ 
-
- /*
-  * Idea: 
-  * 1. reset beliefs
-  * 2. turn clockwise until hit black or yellow
-  * 3. if hit black or yellow, call align_street to make it align to the street
-  * 4. if hit red, turn 90 degrees clockwise and do find_street again
-  */  
   
  double drive_speed = 10.0;
  // reset beliefs
@@ -388,9 +343,10 @@ int find_street(int* coloursArray)
 
  while(1) {
   int angle = 0, rate, color, turn_count=0;
-  color = detect_and_classify_colour(coloursArray);
-
-  while (!(color == BLACKCOLOR || color == YELLOWCOLOR)) {
+  color = wait_colour_consistent(coloursArray);
+  fprintf(stderr, "Turn_count: %d, Color: %d\n", turn_count, color);
+  while (color != BLACKCOLOR && color != YELLOWCOLOR) {
+   fprintf(stderr, "Turn_count: %d\n", turn_count);
    if (turn_count > 60) {
     fprintf(stderr, "lost\n");
     return -1;
@@ -398,34 +354,55 @@ int find_street(int* coloursArray)
 
    if (color == REDCOLOR) {
     fprintf(stderr, "HIT RED\n");
-    turn(coloursArray, 90);
+    if (last_turn_direction == 1) {
+     color = turn(coloursArray, -90);
+    } else if (last_turn_direction == -1) {
+     color = turn(coloursArray, 90);
+    } else if (last_turn_direction == 0) {
+     color = turn(coloursArray, 90);
+    }
+    // turn(coloursArray, 90);
     break;
    }
    // turning clockwise
    turn(coloursArray, 10);
    turn_count++;
+   color = wait_colour_consistent(coloursArray);
    usleep(1000000);
   }
   // hit black or yellow
   // oscillate to keep moving on the street
-  color = detect_and_classify_colour(coloursArray);
+  color = wait_colour_consistent(coloursArray);
   while (1) {
+   fprintf(stderr, "Hit black or yellow\n");  
    BT_all_stop(1);
    usleep(1000000);
    int black_steps = 0;
 
    while(color == BLACKCOLOR || color == YELLOWCOLOR) {
+    fprintf(stderr, "Trying to stay on street: %d\n", black_steps);
     if (black_steps >= 10) {
-     BT_all_stop(1);
+     drive_along_street(coloursArray);
      return 0;
     }
+
     BT_drive(MOTOR_LEFT, MOTOR_RIGHT, drive_speed);
-    color = detect_and_classify_colour(coloursArray);
+    color = wait_colour_consistent(coloursArray);
+    
     black_steps++;
+
    }
 
    if (color == REDCOLOR) {
-    color = turn(coloursArray, 90);
+    fprintf(stderr, "HHHHHHHHHIT RED\n");
+    if (last_turn_direction == 1) {
+     color = turn(coloursArray, -90);
+    } else if (last_turn_direction == -1) {
+     color = turn(coloursArray, 90);
+    } else if (last_turn_direction == 0) {
+     color = turn(coloursArray, 90);
+    }
+    // color = turn(coloursArray, 90);
     continue;
    }
    // turn counter-clockwise until we hit black
@@ -433,7 +410,6 @@ int find_street(int* coloursArray)
   }
  }
  BT_all_stop(1);
- align_street(coloursArray);
  return 0;
 }
 
@@ -451,8 +427,8 @@ int drive_along_street(int *colorArr)
   * bot after calling this function.
   */   
 
- double base_speed = 20.0;
- double max_speed = 80.0;
+ double base_speed = 10.0;
+ double max_speed = 30.0;
  int angle = 0, rate;
 
  BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
@@ -478,7 +454,6 @@ int drive_along_street(int *colorArr)
   double left_speed=base_speed, right_speed=base_speed;
   if (error > 0) {
    // bit right. Tweaking left.
-   // fprintf(stderr, "bit right. Tweaking left.Gyro: %d\n", angle);
    left_speed = base_speed - pid_out;
    right_speed = base_speed + pid_out;
    // Limit speed
@@ -488,7 +463,6 @@ int drive_along_street(int *colorArr)
     left_speed = -max_speed;
    }
   } else if (error < 0) {
-   // fprintf(stderr, "bit left. Tweaking right.Gyro: %d\n", angle);
    left_speed = base_speed + pid_out;
    right_speed = base_speed - pid_out;
    // Limit speed
@@ -630,18 +604,18 @@ int turn(int* coloursArray, int turn_angle)
   // turning clockwise
   if (turn_angle > 0)
   {
-    lpow = 20;
-    rpow = -20;
+    lpow = 15;
+    rpow = -15;
   }
 
   // turning counter-clockwise
   else
   {
-    lpow = -20;
-    rpow = 20;
+    lpow = -15;
+    rpow = 15;
   }
 
-  fprintf(stderr, "left pow %d right pow %d\n", lpow, rpow);
+  // fprintf(stderr, "left pow %d right pow %d\n", lpow, rpow);
   BT_turn(MOTOR_LEFT, lpow, MOTOR_RIGHT, rpow);
 
   while (abs(turn_angle) > abs(angle))
@@ -956,7 +930,7 @@ int detect_and_classify_colour(int* coloursArray)
 
   // reads the colour sensor
   read_colour_sensor(10, &R, &G, &B);
-  fprintf(stdout, "%d %d %d\n", R, G, B);
+  // fprintf(stdout, "%d %d %d\n", R, G, B);
 
   // finds the closest 3 colours
   for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
@@ -1084,7 +1058,6 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
 
   angle = 0;
   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
-  fprintf(stderr, "RESETangle %d\n", angle);
   // rotate until gyro at center
   coloursDetected[1] = 0;
   while (angle < 90)
