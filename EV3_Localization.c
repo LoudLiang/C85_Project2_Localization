@@ -413,6 +413,16 @@ int find_street(int* coloursArray)
  return 0;
 }
 
+
+void align_street(int *colorArr) {
+ BT_drive(MOTOR_LEFT, MOTOR_RIGHT, -12);
+ BT_turn(MOTOR_LEFT, 0, MOTOR_RIGHT, 0);
+ BT_all_stop(1);
+
+
+}
+
+
 int drive_along_street(int *colorArr)
 {
  /*
@@ -431,20 +441,26 @@ int drive_along_street(int *colorArr)
  double max_speed = 30.0;
  int angle = 0, rate;
 
- BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
-
  // rotate_gyro_to_centre();
- BT_drive(MOTOR_LEFT, MOTOR_RIGHT, base_speed);
 
  for (int m=0; m<1000; m++) {
-//  while(1) {
-  int color = detect_and_classify_colour(colorArr);
+ // while (1) {
+  BT_drive(MOTOR_LEFT, MOTOR_RIGHT, base_speed);
+  int color = wait_colour_consistent(colorArr);
+
+  while (color != BLACKCOLOR) {
+   align_street(colorArr);
+  }
+  BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
+
   if (color == YELLOWCOLOR) {
    break;
   } else if (color == REDCOLOR) {
-    break;
+   // comment this and uncomment find street when finish testing
+   break;
+   // find_street(colorArr);
   }
-  
+
   BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
   fprintf(stderr, "JIOJOJOJGyro: %d\n", angle);
   int error = angle - straight_setpoint;
