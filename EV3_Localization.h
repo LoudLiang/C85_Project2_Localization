@@ -103,7 +103,7 @@ typedef struct {
 #define MOTOR_MIDDLE MOTOR_B
 #define MOTOR_GHOST  MOTOR_C
 #define COLOUR_PORT  PORT_1
-#define GYRO_PORT    PORT_2
+#define GYRO_PORT    PORT_4
 #define ULTRASONIC_PORT PORT_3
 
 /*

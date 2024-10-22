@@ -293,6 +293,9 @@ int main(int argc, char *argv[])
  }
 
  pid_straight_init(pid_straight);
+ //scan_intersection(coloursArray, &tl, &tr, &br, &bl);
+ turn_at_intersection(coloursArray, 1);
+ //drive_along_street(coloursArray);
 
 //  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
 //  drive_along_street(coloursArray);
@@ -308,7 +311,7 @@ int main(int argc, char *argv[])
 //  drive_along_street(coloursArray);
 //  turn_at_intersection(coloursArray, 0);
 //  turn_at_intersection(coloursArray, 1);
- find_street(coloursArray);
+ //find_street(coloursArray);
 
  free(pid_straight);
 
@@ -640,12 +643,12 @@ int turn(int* coloursArray, int turn_angle)
     printf("angle %d\n", angle);
 
     // check if we've hit the road
-    if (abs(abs(turn_angle)-abs(angle)) < 25)
+    if (abs(abs(turn_angle)-abs(angle)) < 20)
     {
       colour = detect_and_classify_colour(coloursArray);
       if (!hitRoad && (colour == BLACKCOLOR))
       {
-        turn_angle = angle + 5;
+        turn_angle = angle + 15;
         hitRoad = 1;
       }
     }
@@ -1076,7 +1079,8 @@ void scan_colours(int* coloursArray, int coloursDetected[3])
   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
   // rotate until gyro at center
   coloursDetected[1] = 0;
-  while (angle < 90)
+  //CHANGED THIS FROM 90 TO 65 -Lucas
+  while (angle < 65)
   {
     BT_motor_port_start(MOTOR_MIDDLE, -1);
     BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
