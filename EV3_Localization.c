@@ -1622,6 +1622,9 @@ void test_localization()
   int tl, tr, bl, br;
   int quit;
   int angle;
+  int x_pos;
+  int y_pos;
+  int direction;
 
   printf("\nThis is a simulation to test the localization algorithm.\n");
   printf("Looking at the map, choose a space for the bot to start and keep track of it\n");
@@ -1644,6 +1647,10 @@ void test_localization()
     scanf("%d", &bl);
     update_beliefs(tl, tr, br, bl);
     print_beliefs();
+    if (current_position(&x_pos, &y_pos, &direction) == 1){
+      printf("Localized! We are at x=%d, y=%d, facing %d\n", x_pos, y_pos, direction);
+      break;
+    }
     printf("Quit? (1/0):\n");
     scanf("%d", &quit);
   }
@@ -1788,4 +1795,31 @@ void rotate_beliefs(int direction){
   }
   print_beliefs();
   
+}
+
+/*
+  Looks at beliefs and returns a position and direction that the bot is suitably likely in
+  or -1, -1, -1 if no such position
+*/
+int current_position(int *x_pos, int *y_pos, int *direction){
+  double highest = 0;
+  double second_highest = 0;
+
+  for (int j = 0; j < sy; j++){
+    for (int i = 0; i <sx; i++){
+      for (int k = 0; k < 4; k++){
+        if (beliefs[i+j*sx][k] > highest){
+          second_highest = highest;
+          highest = beliefs[i+j*sx][k];
+          *x_pos = i;
+          *y_pos = j;
+          *direction = k;
+        }
+        else if (beliefs[i+j*sx][k] > second_highest){
+          second_highest = beliefs[i+j*sx][k];
+        }
+      }
+    }
+  }
+  return highest > (second_highest + 0.6); 
 }

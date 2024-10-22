@@ -144,4 +144,5 @@ void test_localization(void);
 void update_beliefs(int tl, int tr, int br, int bl);
 void update_facing_beliefs(int colour, int position);
 void rotate_beliefs(int direction);
+int current_position(int *x_pos, int *y_pos, int *direction);
 #endif
