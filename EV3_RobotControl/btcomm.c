@@ -243,7 +243,7 @@ int BT_play_tone_sequence(const int tone_data[50][3])
 }
 
 
-int BT_motor_port_start(char port_ids, char power)
+int BT_motor_port_start(char port_ids, signed char power)
 {
  ////////////////////////////////////////////////////////////////////////////////////////////////
  //
@@ -443,7 +443,7 @@ int BT_all_stop(int brake_mode){
 }
 
 
-int BT_drive(char lport, char rport, char power){
+int BT_drive(char lport, char rport, signed char power){
  ////////////////////////////////////////////////////////////////////////////////////////////////
  // This function sends a command to the left and right motor ports to set the motor power to
  // the desired value. You can drive forward or backward depending on the sign of the power
@@ -528,7 +528,7 @@ int BT_drive(char lport, char rport, char power){
 }
 
 
-int BT_turn(char lport, char lpower, char rport, char rpower){
+int BT_turn(char lport, signed char lpower, char rport, signed char rpower){
  ////////////////////////////////////////////////////////////////////////////////////////////////
  //
  // This function sends a command to the left and right motor ports to set the motor power to
@@ -615,7 +615,7 @@ int BT_turn(char lport, char lpower, char rport, char rpower){
 }
 
 
-int BT_timed_motor_port_start(char port_id, char power, int ramp_up_time, int run_time, int ramp_down_time){
+int BT_timed_motor_port_start(char port_id, signed char power, int ramp_up_time, int run_time, int ramp_down_time){
  ////////////////////////////////////////////////////////////////////////////////////////////////
  //
  // Provides timed operation of the motor ports. This allows you, for example, to create carefully timed
@@ -712,7 +712,7 @@ int BT_timed_motor_port_start(char port_id, char power, int ramp_up_time, int ru
 }
 
 
-int BT_timed_motor_port_start_v2(char port_id, char power, int time){
+int BT_timed_motor_port_start_v2(char port_id, signed char power, int time){
  ////////////////////////////////////////////////////////////////////////////////////////////////
  //
  // This is a quick call provided for convenience - it sets the motor to the specified power

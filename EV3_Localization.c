@@ -354,14 +354,15 @@ int find_street(int* coloursArray)
 
    if (color == REDCOLOR) {
     fprintf(stderr, "HIT RED\n");
-    if (last_turn_direction == 1) {
-     color = turn(coloursArray, -90);
-    } else if (last_turn_direction == -1) {
-     color = turn(coloursArray, 90);
-    } else if (last_turn_direction == 0) {
-     color = turn(coloursArray, 90);
-    }
-    // turn(coloursArray, 90);
+    if (last_turn_direction != 0) color turn(coloursArray, -90 * last_turn_direction);
+    else color = turn(coloursArray, 90);
+    // if (last_turn_direction == 1) {
+    //  color = turn(coloursArray, -90);
+    // } else if (last_turn_direction == -1) {
+    //  color = turn(coloursArray, 90);
+    // } else if (last_turn_direction == 0) {
+    //  color = turn(coloursArray, 90);
+    // }
     break;
    }
    // turning clockwise
@@ -395,14 +396,8 @@ int find_street(int* coloursArray)
 
    if (color == REDCOLOR) {
     fprintf(stderr, "HHHHHHHHHIT RED\n");
-    if (last_turn_direction == 1) {
-     color = turn(coloursArray, -90);
-    } else if (last_turn_direction == -1) {
-     color = turn(coloursArray, 90);
-    } else if (last_turn_direction == 0) {
-     color = turn(coloursArray, 90);
-    }
-    // color = turn(coloursArray, 90);
+    if (last_turn_direction != 0) color turn(coloursArray, -90 * last_turn_direction);
+    else color = turn(coloursArray, 90);
     continue;
    }
    // turn counter-clockwise until we hit black
@@ -415,11 +410,31 @@ int find_street(int* coloursArray)
 
 
 void align_street(int *colorArr) {
- BT_drive(MOTOR_LEFT, MOTOR_RIGHT, -12);
+ double drive_speed = 10.0;
+ // move back a bit
+ BT_drive(MOTOR_LEFT, MOTOR_RIGHT, -1 * drive_speed);
+ usleep(500000);
  BT_turn(MOTOR_LEFT, 0, MOTOR_RIGHT, 0);
  BT_all_stop(1);
 
-
+ int color = wait_colour_consistent(colorArr);
+ while (color != BLACKCOLOR) {
+  // need to align back to street
+  int black_steps = 0;
+  if (last_turn_direction != 0) color = turn(colorArr, 5 * last_turn_direction);
+  else color = turn(colorArr, 5);
+  if (color == BLACKCOLOR) {
+   black_steps++;
+   if (black_steps >= 6) {
+    // aligned
+    return;
+   }
+   BT_drive(MOTOR_LEFT,,l MOTOR_RIGHT, drive_speed);
+   color = wait_colour_consistent(colorArr);
+  } 
+  usleep(500000);
+ }
+ return;
 }
 
 
