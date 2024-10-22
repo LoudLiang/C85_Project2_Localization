@@ -127,7 +127,7 @@ void scan_colours(int* coloursArray, int coloursDetected[3]);
 
 int parse_map(unsigned char *map_img, int rx, int ry);
 int robot_localization(int *coloursArray, int *robot_x, int *robot_y, int *direction);
-int go_to_target(int robot_x, int robot_y, int direction, int target_x, int target_y);
+int go_to_target(int* coloursArray, int robot_x, int robot_y, int direction, int target_x, int target_y);
 int find_street(void);
 int drive_along_street(int *colorArr);
 int scan_intersection(int* coloursArrary, int *tl, int *tr, int *br, int *bl);
@@ -144,5 +144,5 @@ void test_localization(void);
 void update_beliefs(int tl, int tr, int br, int bl);
 void update_facing_beliefs(int colour, int position);
 void rotate_beliefs(int direction);
-int current_position(int *x_pos, int *y_pos, int *direction);
+int is_localized(int *x_pos, int *y_pos, int *direction);
 #endif
