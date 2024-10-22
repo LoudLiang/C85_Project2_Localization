@@ -139,4 +139,5 @@ unsigned char *readPPMimage(const char *filename, int *rx, int*ry);
 void pid_straight_init(PIDController *pid);
 double pid_controller_update(PIDController *pid, int error, int measurement);
 void rotate_gyro_to_centre(void);
+void align_street(int *colorArr);
 #endif

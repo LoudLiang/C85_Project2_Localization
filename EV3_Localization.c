@@ -307,8 +307,9 @@ int main(int argc, char *argv[])
 //  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
 //  drive_along_street(coloursArray);
 //  turn_at_intersection(coloursArray, 0);
-//  turn_at_intersection(coloursArray, 1);
- find_street(coloursArray);
+ turn_at_intersection(coloursArray, 1);
+//  find_street(coloursArray);
+//  align_street(coloursArray);
 
  free(pid_straight);
 
@@ -354,7 +355,7 @@ int find_street(int* coloursArray)
 
    if (color == REDCOLOR) {
     fprintf(stderr, "HIT RED\n");
-    if (last_turn_direction != 0) color turn(coloursArray, -90 * last_turn_direction);
+    if (last_turn_direction != 0) color = turn(coloursArray, -90 * last_turn_direction);
     else color = turn(coloursArray, 90);
     // if (last_turn_direction == 1) {
     //  color = turn(coloursArray, -90);
@@ -396,7 +397,7 @@ int find_street(int* coloursArray)
 
    if (color == REDCOLOR) {
     fprintf(stderr, "HHHHHHHHHIT RED\n");
-    if (last_turn_direction != 0) color turn(coloursArray, -90 * last_turn_direction);
+    if (last_turn_direction != 0) color = turn(coloursArray, -90 * last_turn_direction);
     else color = turn(coloursArray, 90);
     continue;
    }
@@ -416,10 +417,11 @@ void align_street(int *colorArr) {
  usleep(500000);
  BT_turn(MOTOR_LEFT, 0, MOTOR_RIGHT, 0);
  BT_all_stop(1);
-
+ fprintf(stderr, "Aligning to street: check color\n");
  int color = wait_colour_consistent(colorArr);
  while (color != BLACKCOLOR) {
   // need to align back to street
+  fprintf(stderr, "Need to align back to street\n");
   int black_steps = 0;
   if (last_turn_direction != 0) color = turn(colorArr, 5 * last_turn_direction);
   else color = turn(colorArr, 5);
@@ -429,7 +431,7 @@ void align_street(int *colorArr) {
     // aligned
     return;
    }
-   BT_drive(MOTOR_LEFT,,l MOTOR_RIGHT, drive_speed);
+   BT_drive(MOTOR_LEFT, MOTOR_RIGHT, drive_speed);
    color = wait_colour_consistent(colorArr);
   } 
   usleep(500000);
@@ -703,21 +705,27 @@ int turn_at_intersection(int* coloursArray, int turn_direction)
   */
 
   int angle = 0, rate;
+  int color;
 
   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
   
   // turning left
   if (turn_direction)
   {
-    turn(coloursArray, -85);
+    color = turn(coloursArray, -85);
   }
 
   // turning right
   else
   {
-    turn(coloursArray, 85);
+    color = turn(coloursArray, 85);
   }
 
+  if (color != BLACKCOLOR) {
+    fprintf(stderr, "Adjusting robot position\n");
+    align_street(coloursArray);
+  }
+  fprintf(stderr, "NOT GOING INTO ALIGN\n");
   return(1);
 }
 
