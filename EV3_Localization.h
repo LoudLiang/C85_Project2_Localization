@@ -103,7 +103,7 @@ typedef struct {
 #define MOTOR_MIDDLE MOTOR_B
 #define MOTOR_GHOST  MOTOR_C
 #define COLOUR_PORT  PORT_1
-#define GYRO_PORT    PORT_2
+#define GYRO_PORT    PORT_4
 #define ULTRASONIC_PORT PORT_3
 
 /*
@@ -114,6 +114,7 @@ typedef struct {
 #define COLOUR_PROBABILITIES_FILE "colour_probabilities.txt"
 #define DATA_PTS_PER_COLOUR 10
 #define READS_PER_DATA_PT 100
+#define READS_PER_PROBABILITY 10.0
 
 void wait_ready_to_scan(void);
 int wait_colour_change(int* coloursArray, int initialColour);
