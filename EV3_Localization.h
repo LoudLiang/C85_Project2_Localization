@@ -120,7 +120,7 @@ int wait_colour_change(int* coloursArray, int initialColour);
 int wait_colour_consistent(int* coloursArray);
 int wait_turn_angle(int turn_angle);
 
-int turn(int* coloursArray, int turn_angle);
+int turn(int* coloursArray, int turn_angle, int checkRightAway);
 int* get_colour_dataPoint(int*coloursArray, int colour, int dataPoint);
 void reading_colour_data(int* coloursArray);
 void read_colour_sensor(int repetitions, int* R, int* G, int* B);

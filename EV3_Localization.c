@@ -298,10 +298,10 @@ int main(int argc, char *argv[])
 
 //  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
 //  drive_along_street(coloursArray);
-//  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
-//  turn_at_intersection(coloursArray, 1);
-//  drive_along_street(coloursArray);
-//  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
+ scan_intersection(coloursArray, &tl, &tr, &br, &bl);
+ turn_at_intersection(coloursArray, 1);
+ drive_along_street(coloursArray);
+ scan_intersection(coloursArray, &tl, &tr, &br, &bl);
 //  drive_along_street(coloursArray);
 //  turn_at_intersection(coloursArray, 0);
 //  fprintf(stderr, "tl %d tr %d br %d bl %d\n", tl, tr, br, bl);
@@ -310,7 +310,7 @@ int main(int argc, char *argv[])
 //  drive_along_street(coloursArray);
 //  turn_at_intersection(coloursArray, 0);
 //  turn_at_intersection(coloursArray, 1);
- find_street(coloursArray);
+//  find_street(coloursArray);
 
  free(pid_straight);
 
@@ -356,19 +356,12 @@ int find_street(int* coloursArray)
 
    if (color == REDCOLOR) {
     fprintf(stderr, "HIT RED\n");
-    if (last_turn_direction != 0) color = turn(coloursArray, -90 * last_turn_direction);
-    else color = turn(coloursArray, 90);
-    // if (last_turn_direction == 1) {
-    //  color = turn(coloursArray, -90);
-    // } else if (last_turn_direction == -1) {
-    //  color = turn(coloursArray, 90);
-    // } else if (last_turn_direction == 0) {
-    //  color = turn(coloursArray, 90);
-    // }
+    if (last_turn_direction != 0) color = turn(coloursArray, -90 * last_turn_direction, 0);
+    else color = turn(coloursArray, 90, 0);
     break;
    }
    // turning clockwise
-   turn(coloursArray, 10);
+   turn(coloursArray, 10, 1);
    turn_count++;
    color = wait_colour_consistent(coloursArray);
    usleep(1000000);
@@ -398,12 +391,12 @@ int find_street(int* coloursArray)
 
    if (color == REDCOLOR) {
     fprintf(stderr, "HHHHHHHHHIT RED\n");
-    if (last_turn_direction != 0) color = turn(coloursArray, -90 * last_turn_direction);
-    else color = turn(coloursArray, 90);
+    if (last_turn_direction != 0) color = turn(coloursArray, -90 * last_turn_direction, 0);
+    else color = turn(coloursArray, 90, 0);
     continue;
    }
    // turn counter-clockwise until we hit black
-   color = turn(coloursArray, -3);
+   color = turn(coloursArray, -3, 1);
   }
  }
  BT_all_stop(1);
@@ -421,20 +414,22 @@ int black_steps = 0;
   while (color != BLACKCOLOR && color != YELLOWCOLOR) {
     black_steps = 0;
     // need to align back to street
-    fprintf(stderr, "Need to align back to street: %d\n", last_turn_direction);
-    if (last_turn_direction != 0) color = turn(colorArr, -5 * last_turn_direction);
-    else color = turn(colorArr, 5);
+    // turn until see black and then go a little more
+    
+    color = turn(colorArr, 40, 1);
     if (color == BLACKCOLOR || color == YELLOWCOLOR) {
       black_steps++;
+      BT_drive(MOTOR_LEFT, MOTOR_RIGHT, drive_speed);
       fprintf(stderr, "black steps: %d\n", black_steps);
     } 
-    BT_drive(MOTOR_LEFT, MOTOR_RIGHT, drive_speed);
     color = wait_colour_consistent(colorArr);
     usleep(100000);
   }
   black_steps++;
+  BT_drive(MOTOR_LEFT, MOTOR_RIGHT, drive_speed);
+  
   fprintf(stderr, "black steps: %d\n", black_steps);
-  if (black_steps >= 7) {
+  if (black_steps >= 10) {
     // aligned
     fprintf(stderr, "Aligned!!!!\n");
     BT_turn(MOTOR_LEFT, 0, MOTOR_RIGHT, 0);
@@ -472,7 +467,7 @@ int drive_along_street(int *colorArr)
   BT_drive(MOTOR_LEFT, MOTOR_RIGHT, base_speed);
   int color = wait_colour_consistent(colorArr);
 
-  align_street(colorArr);
+  if(color != BLACKCOLOR) align_street(colorArr);
   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
 
   if (color == YELLOWCOLOR) {
@@ -631,12 +626,12 @@ int wait_turn_angle(int turn_angle)
 
   Returns the colour that we land on.
 */
-int turn(int* coloursArray, int turn_angle)
+int turn(int* coloursArray, int turn_angle, int checkRightAway)
 {
-  int colour = 0, angle, rate, lpow = 0, rpow = 0, hitRoad = 0;
+  int colour = 0, angle, rate, lpow = 0, rpow = 0, hitRoad = 0, leeway;
 
-  if (angle > 0) last_turn_direction = 1;
-  else if (angle < 0) last_turn_direction = -1;
+  if (turn_angle > 0) last_turn_direction = 1;
+  else if (turn_angle < 0) last_turn_direction = -1;
   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
   
   // turning clockwise
@@ -644,6 +639,7 @@ int turn(int* coloursArray, int turn_angle)
   {
     lpow = 20;
     rpow = -20;
+    leeway = 10;
   }
 
   // turning counter-clockwise
@@ -651,6 +647,7 @@ int turn(int* coloursArray, int turn_angle)
   {
     lpow = -20;
     rpow = 20;
+    leeway = -10;
   }
 
   // fprintf(stderr, "left pow %d right pow %d\n", lpow, rpow);
@@ -662,12 +659,13 @@ int turn(int* coloursArray, int turn_angle)
     printf("angle %d\n", angle);
 
     // check if we've hit the road
-    if (abs(abs(turn_angle)-abs(angle)) < 20)
+    fprintf(stderr, "checkrightaway %d turn angle %d angle %d diff %d\n", checkRightAway, turn_angle, angle, abs(turn_angle) - abs(angle));
+    if (checkRightAway || abs(abs(turn_angle) - abs(angle)) < 20)
     {
       colour = detect_and_classify_colour(coloursArray);
       if (!hitRoad && (colour == BLACKCOLOR))
       {
-        turn_angle = angle + 15;
+        turn_angle = angle + leeway;
         hitRoad = 1;
       }
     }
@@ -713,22 +711,23 @@ int turn_at_intersection(int* coloursArray, int turn_direction)
   int color;
 
   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
+
+
   
   // turning left
   if (turn_direction)
   {
-    color = turn(coloursArray, -85);
+    color = turn(coloursArray, -85, 0);
   }
 
   // turning right
   else
   {
-    color = turn(coloursArray, 85);
+    color = turn(coloursArray, 85, 0);
   }
 
-
   fprintf(stderr, "Adjusting robot position\n");
-  align_street(coloursArray);
+  // align_street(coloursArray);
   return(1);
 }
 
@@ -796,7 +795,7 @@ int robot_localization(int *coloursArray, int *robot_x, int *robot_y, int *direc
   // if at the border, turn around 
   if (colour == REDCOLOR)
   {
-    turn(coloursArray, 180);
+    turn(coloursArray, 180, 0);
   }
 
   // not at the border, scan intersection
