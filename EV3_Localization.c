@@ -1706,7 +1706,7 @@ void test_localization()
 
   printf("\nThis is a simulation to test the localization algorithm.\n");
   printf("Looking at the map, choose a space for the bot to start and keep track of it\n");
-  printf("The bot will assume that when it hits an edge, it rotates 180 degrees and returns to the intersection,\n");
+  printf("The bot will assume that when it hits an edge, it backs up and returns to the intersection,\n");
   printf("There is no need to input the 180 rotation\n");
   while (quit != 1){
     printf("Turn direction? (0 for left, 1 for right, -1 for straight)\n");
@@ -1757,46 +1757,73 @@ void update_beliefs(int tl, int tr, int br, int bl)
   //get to an intesection
   for (int j = 0; j < sy; j++){
     for (int i = 0; i <sx; i++){
-      /*
-        if we are on the bottom edge of the map
-        facing up, the chance of being here is 
-        the chance we were here facing down, 
-        but drove down and hit the border
-      */
+      //if we are on the bottom of the map
       if (j == sy - 1){
-        beliefs[i+j*sx][0] = beliefs_copy[i+j*sx][3];
+        /*
+        if movement works, there is no chance we can
+        be on the bottom of the map, facing up
+        so we make it some very small number
+        */
+        beliefs[i+j*sx][0] = 0.00001;
       }
       else{
         //if we are not on the bottom edge of the map,
-        //the chance of us being here facing up,
+        //the chance of us being here facing down,
         //is the chance of us being below this spot
         //facing up
         beliefs[i+j*sx][0] = beliefs_copy[i+(j+1)*sx][0];
       }
       
       //similar logic as above, but for other facing directions
+      //left edge
       if (i==0){
-        beliefs[i+j*sx][1] = beliefs_copy[i+j*sx][3];
+        beliefs[i+j*sx][1] = 0.00001;
       }
       else{
         beliefs[i+j*sx][1] = beliefs_copy[(i-1)+j*sx][1];
       }
-
+      //top
       if (j == 0){
-        beliefs[i+j*sx][2] = beliefs_copy[i+j*sx][0];
+        beliefs[i+j*sx][2] = 0.00001;
       }
       else{
         beliefs[i+j*sx][2] = beliefs_copy[i+(j-1)*sx][2];
       }
-      
+      //right edge
       if (i == sx - 1){
-        beliefs[i+j*sx][3] = beliefs_copy[i+j*sx][1];
+        beliefs[i+j*sx][3] = 0.00001;
       }
       else{
         beliefs[i+j*sx][3] = beliefs_copy[(i+1)+j*sx][3];
       }
+
+      //going back and overwriting in some more complicated scenarios
+      if (j==sy-1){
+        /*
+          for the odds of us being on the bottom of the map, facing down,
+          we are either here after moving down from the space above, or
+          from already being here, moving forward, hitting the red, and reversing
+          so we take half of both those probabilities and add
+        */
+        beliefs[i+j*sx][2] = beliefs_copy[i+(j-1)*sx][2]*0.5 + beliefs_copy[i+j*sx][2]*0.5;
+      }
+      //similare logic for other edge cases
+      //left edge
+      if (i==0){
+        beliefs[i+j*sx][3] = beliefs_copy[(i+1)+j*sx][3]*0.5 + beliefs_copy[i+j*sx][3]*0.5;
+      }
+      //top
+      if (j == 0){
+        beliefs[i+j*sx][0] = beliefs_copy[i+(j+1)*sx][0]*0.5 + beliefs_copy[i+j*sx][0]*0.5;
+      }
+      //right edge
+      if (i == sx - 1){
+        beliefs[i+j*sx][1] = beliefs_copy[(i-1)+j*sx][1]*0.5 + beliefs_copy[i+j*sx][1]*0.5;
+      }
     }
   }
+
+  normalize_beliefs();
 
   //updates based on colour of intersections
   update_facing_beliefs(tl, 0);
