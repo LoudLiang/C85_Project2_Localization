@@ -1,0 +1,111 @@
+Q1. What is the total number of probabilities your robot has to keep
+track of for a map of size m x n?
+
+For each of the m x n intersections, there are 4 probabilities 
+corresponding to the belief that the robor is at that intersection 
+and facing one of the 4 directions. Therefore, we keep track of 
+m x n x 4 probabilities. 
+
+-------------------------------------------------------------------------
+Q2. What should be the initial value of the probabilities your robot is
+keeping track of?
+
+Since the initial values of the probabilities should be uniform, 
+the initial value of each probability should be 1/(m x n x 4).
+
+-------------------------------------------------------------------------
+Q3. Describe your strategy for dealing with sensor noise, and
+explain why it should work and how you tested it.
+
+1. Color sensor:
+  i. To reduce noise, we implemented calibration for the color sensor. 
+  For each color, we take 10 readings with different positions and 
+  angle on the map. The result is stored in a file `colour_data.txt`. 
+  Every time we detect the color, we compare the RGB value with the 
+  colors in `colour_data.txt` and choose the one with the smallest
+  distance. Calibration helps to get rid of the ambient light and 
+  reduce the noise effectively.
+
+  ii. To further reduce the noise, when the color detection place a 
+  relatively more important role, we will scan the color multiple times
+  until the two consecutive readings are the same. We don't do this
+  for every color detection because it takes longer time, and may not
+  change status fast enough.
+
+2. Gyro sensor & ultrasonic sensor:
+  We use the combination of gyro and ultrasonic sensor to deal with the
+  noise when the robot wants to center the color sensor at 90 degrees.
+  Since there is no noise in the gyro sensor and it gives ~70 degrees when
+  the color sensor is at 90 degrees, we use the ultrasonic sensor to
+  determine the distance between the robot and the color sensor. When 
+  the distance gives us 246 (the maximum distance) and we see a black on 
+  the map, we know the robot is at the right position.
+
+-------------------------------------------------------------------------
+Q4. Describe your probability update function in detail and
+explain how you defined 'agreement' as well as how you
+Determined the amount by which to update probabilities.
+
+-------------------------------------------------------------------------
+Q5. Describe in detail your robot's exploration strategy - it should
+be more complex than simply moving in the same direction
+until hitting the boundary of the map. How did you choose this
+Strategy?
+
+-------------------------------------------------------------------------
+Q6. Describe in detail how beliefs are shifted when the robot gets
+to a boundary. Consider this problem carefully, the correct
+way to handle this is not obvious. Explain clearly what
+assumptions regarding the robot's motion support your
+strategy for shifting belief values in this case.
+
+-------------------------------------------------------------------------
+Q7. Describe in detail how beliefs are shifted when the robot turns
+90 degrees (either left or right) without going to a different
+Intersection. Describe your assumptions about robot motion,
+and how these support your strategy for handling this case.
+
+-------------------------------------------------------------------------
+Q8. Explain your method for deciding when the robot has achieved
+correct localization.
+
+-------------------------------------------------------------------------
+Q9. Briefly explain your robot design choices, including sensor placement
+and robot mobility considerations.
+
+We made a 2-wheel robot with a color sensor, gyro sensor and ultrasonic
+sensor. The brick is on the top of the robot. The color sensor is placed in 
+the front of the robot, and the  gyro placed right above the color sensor. 
+The color sensor and gyro shares the same motor, so that we can detect both 
+the angle rotated of the color sensor and the driving direction of the whole 
+robot. We used several gears to connect sensors to the motor, which enables 
+the sensors rotate in a range of 0 to 180 degrees. The ultrasonic sensor is 
+put under the brick, aiming the centre of the robot, also represents the 
+color sensor's position when it's 90 degrees i.e. facing the front. A shield 
+is placed around the color sensor to avoid certain amount of the ambient light. 
+
+We read colors by moving the robot forward until it sees yellow. First we scan 
+the two bottom colors, then move forward a bit to scan the two top colors. 
+This is also a reasonable position for us to turn because the robot is
+relatively large. 
+
+Because of the relative position of the brick, the color sensor and the gyro,
+we should arrange the wires very carefully to avoid the motor for sensors 
+being stuck.
+
+-------------------------------------------------------------------------
+Q10. What parameters did you find affect the most the ability of the robot to
+determine its location?
+
+-------------------------------------------------------------------------
+Q11. Can external factors (illumination in the room, for example) affect the
+ability of the robot to find itself?
+
+-------------------------------------------------------------------------
+Q12. On average, how many intersections does your robot need to visit
+to achieve successful localization?
+
+-------------------------------------------------------------------------
+Q13. Are there locations in the map that make localization harder? (i.e.
+does it matter where your robot starts its journey? Why?)
+

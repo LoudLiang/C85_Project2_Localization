@@ -1,0 +1,43 @@
+Do you feel this project helped you to understand the following ideas:
+(please answer yes, no, somewhat, and comment on what if anything could
+have improved your learning experience).
+
+1) The main steps of a robot localization algorithm
+Yes. You provide us with a great map (which is very suitable for implementing
+histogram-based localization) and a great robotics kit to work with. The
+project goal is also perfectly tailored for localization.
+
+-------------------------------------------------------------------------
+2) Dealing with real-world sensors
+Yes. The sensors are very useful and common in real-world robotics, and they
+have the noisy characteristics that we need to deal with, which is also 
+similar to the situation we might encounter in practice. However, it may be
+a bit difference, since in real-world situation we might have more choices
+and/or methods to work with various sensors and tackle the noise problem, 
+while in our project the number and type of sensors are limited. 
+
+-------------------------------------------------------------------------
+3) Dealing with real-world motors and robot motions
+Yes. We have been learning the different usage of motor and trying to solve 
+the motor noise during the project. The experience with motors and robot 
+motions also makes us understand PID controllers better.
+
+-------------------------------------------------------------------------
+4) Using probabilities to keep track of belief about a robot's position
+
+-------------------------------------------------------------------------
+5) Managing uncertainty (e.g. in the quality of sensor readings, or accuracy of
+robot motions)
+Somehow yes. This project covered most of the uncertainty we have learnt
+during the lectures, and we got changes to apply the methods in it. However,
+due to the time limit, the unmaintained robotics and our limited skills,
+we sometimes only feel frustrated and feel like we are not able to completely 
+solve the problems.
+
+-------------------------------------------------------------------------
+6) Do you feel confident you could implement a probabilistic localization algorithm
+for a more complex robot, working in a real world environment?
+(please explain your answer)
+
+-------------------------------------------------------------------------
+7) Any other comments regarding your experience with this project?
