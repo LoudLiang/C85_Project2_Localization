@@ -149,7 +149,7 @@ Q10. What parameters did you find affect the most the ability of the robot to
 determine its location?
 
 Running into the border multiple times makes the robot have a hard time finding 
-it's 
+it's location, as does too many movement or scanning issues in a row.
 
 -------------------------------------------------------------------------
 Q11. Can external factors (illumination in the room, for example) affect the
