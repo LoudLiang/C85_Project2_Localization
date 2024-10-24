@@ -336,8 +336,7 @@ int main(int argc, char *argv[])
 
  // HERE - write code to call robot_localization() and go_to_target() as needed, any additional logic required to get the
  //        robot to complete its task should be here.
- int tl, tr, br, bl, robot_x, robot_y, direction;
- int coloursDetected[3];
+ int tl, tr, br, bl, robot_x, robot_y, direction, foundTarget=0, tries=0;
 
  pid_straight = (PIDController *)malloc(sizeof(PIDController));
 
@@ -348,25 +347,19 @@ int main(int argc, char *argv[])
  }
 
  pid_straight_init(pid_straight);
- robot_localization(coloursArray, &robot_x, &robot_y, &direction);
-  // find_street(coloursArray);
-//  scan_colours(coloursArray, coloursDetected);
-//  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
+
+  int detected[3];
+//  scan_colours(coloursArray, detected);
+ drive_along_street(coloursArray);
 //  drive_along_street(coloursArray);
-//  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
-//  drive_along_street(coloursArray);
-//  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
-//  turn_at_intersection(coloursArray, 1);
-//  drive_along_street(coloursArray);
-//  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
-//  drive_along_street(coloursArray);
-//  turn_at_intersection(coloursArray, 0);
-//  fprintf(stderr, "tl %d tr %d br %d bl %d\n", tl, tr, br, bl);
-//  drive_along_street(coloursArray);
-//  turn_at_intersection(coloursArray, 0);
-//  drive_along_street(coloursArray);
-//  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
-//  turn_at_intersection(coloursArray, 1);
+//  foundTarget = go_to_target(coloursArray, 1, 2, 0, 0, 0);
+
+//  while (foundTarget == 0 && tries < 3)
+//  {
+//   robot_localization(coloursArray, &robot_x, &robot_y, &direction);
+//   foundTarget = go_to_target(coloursArray, robot_x, robot_y, direction, dest_x, dest_y);
+//   tries++;
+//  }
 
  free(pid_straight);
 
@@ -570,9 +563,9 @@ int drive_along_street(int *colorArr)
  int angle = 0, rate;
 
  BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
+ BT_drive(MOTOR_LEFT, MOTOR_RIGHT, base_speed);
  for (int m=0; m<1000; m++) {
-  BT_drive(MOTOR_LEFT, MOTOR_RIGHT, base_speed);
-  int color = detect_and_classify_colour(colorArr);
+  int color = wait_colour_consistent(colorArr);
   fprintf(stderr, "drive along colour %d\n", color);
 
   if (color == YELLOWCOLOR) {
@@ -606,8 +599,8 @@ int drive_along_street(int *colorArr)
   double left_speed=base_speed, right_speed=base_speed;
   if (error > 0) {
    // bit right. Tweaking left.
-   left_speed = base_speed - pid_out;
-   right_speed = base_speed + pid_out;
+   left_speed = base_speed - abs(pid_out);
+   right_speed = base_speed + abs(pid_out);
    // Limit speed
    if (left_speed > max_speed) {
     left_speed = max_speed;
@@ -615,8 +608,8 @@ int drive_along_street(int *colorArr)
     left_speed = -max_speed;
    }
   } else if (error < 0) {
-   left_speed = base_speed + pid_out;
-   right_speed = base_speed - pid_out;
+   left_speed = base_speed + abs(pid_out);
+   right_speed = base_speed - abs(pid_out);
    // Limit speed
    if (right_speed > max_speed) {
     right_speed = max_speed;
@@ -627,7 +620,6 @@ int drive_along_street(int *colorArr)
    continue;
   }
   fprintf(stderr, "Left speed: %f, Right speed: %f, Gyro: %d\n", left_speed, right_speed, angle);
-  // BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
   BT_turn(MOTOR_LEFT, left_speed, MOTOR_RIGHT, right_speed);
  }
  BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 0);
@@ -677,7 +669,7 @@ int scan_intersection(int*coloursArray, int *tl, int *tr, int *br, int *bl)
   {
     // move backwards off the intersection
     BT_drive(MOTOR_LEFT, MOTOR_RIGHT, -15);
-    colour = wait_until_get_colours(coloursArray, (roadColours+1),1);
+    // colour = wait_until_get_colours(coloursArray, (roadColours+1),1);
     colour = wait_colour_change(coloursArray, YELLOWCOLOR);
     fprintf(stderr, "moving until no longer on yellow: %d\n", colour);
 
@@ -706,7 +698,7 @@ int scan_intersection(int*coloursArray, int *tl, int *tr, int *br, int *bl)
 
   BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 15);
 
-  colour = wait_until_get_colours(coloursArray, roadColours, 1);
+  // colour = wait_until_get_colours(coloursArray, roadColours, 1);
   colour = wait_colour_change(coloursArray, BLACKCOLOR);
   fprintf(stderr, "changed to colour %d\n", colour);
 
@@ -787,8 +779,8 @@ int turn(int* coloursArray, int turn_angle, int checkRightAway)
   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
 
   // turning clockwise
-  lpow = 30;
-  rpow = -30;
+  lpow = 20;
+  rpow = -20;
   leeway = abs(turn_angle) < 10 ? 0 : 3;
 
   // turning counter-clockwise
@@ -842,22 +834,6 @@ int turn_at_intersection(int* coloursArray, int turn_direction)
   * and on a street it can follow. 
   * 
   * You can use the return value to indicate success or failure, or to inform your code of the state of the bot
-  */
-
- /*
-  * After scan_intersection, the color sensor cannot see any yellow.
-  * Idea:
-  * 1. if turn_direction=0:
-  *  - move a bit forward. This depends on the size of the robot.
-  *  - stop motors
-  *  - turn right by 90 degrees
-  *   - left motor forward, right motor backward
-  *  - use color sensor to check if the robot is on the street
-  *   - return 0 is black is detected in the expected range of angle
-  *   - If not, call helper function to adjust the robot's position. (`adjust_robot_pos`?). return 0 if successful.
-  *   - return -1 if timeout.
-  * 
-  * 2. if turn_direction=1: symmetrical to the above.
   */
 
   int angle = 0, rate;
@@ -1053,26 +1029,37 @@ int go_to_target(int* coloursArray, int robot_x, int robot_y, int direction, int
   }
 
   //rotate to target direction
-  while (target_direction != direction){
+  if ((target_direction == 3 && direction == 2) || (target_direction == 1 && direction == 0)){
+    //right turn needed
     turn_at_intersection(coloursArray, 1);
     direction = (direction + 1) %4;
   }
-
+  else if ((target_direction == 3 && direction == 0) || (target_direction == 1 && direction == 2)){
+    //left turn needed
+    turn_at_intersection(coloursArray, 0);
+    direction = (direction - 1) %4;
+  }
+  else if (direction != target_direction){
+    //180 needed
+    turn_at_intersection(coloursArray, 0);
+    turn_at_intersection(coloursArray, 0);
+    direction = target_direction;
+  }
   //move to target x
   while (robot_x != target_x){
     colour = drive_along_street(coloursArray);
     if (colour == REDCOLOR){
       //we hit a boarder, which should not happen
       //so we're lost, return failure
-      // TODO failure case
       return(0);
     }
 
     //move until not on yellow
     BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 15);
+    BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 15);
     colour = wait_colour_change(coloursArray, YELLOWCOLOR);
-    BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
-    BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 1);
+    colour = wait_colour_change(coloursArray, YELLOWCOLOR);
+    BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 0);
 
     //update current position
     robot_x += movement_direction;
@@ -1080,7 +1067,7 @@ int go_to_target(int* coloursArray, int robot_x, int robot_y, int direction, int
 
   //same but for y
   if (target_y > robot_y){
-    target_direction = 4;
+    target_direction = 2;
     movement_direction = 1;
   }
   else if (target_y < robot_y){
@@ -1089,10 +1076,23 @@ int go_to_target(int* coloursArray, int robot_x, int robot_y, int direction, int
   }
 
   //rotate to target direction
-  while (target_direction != direction){
+  if ((target_direction == 0 && direction == 3) || (target_direction == 2 && direction == 1)){
+    //right turn needed
     turn_at_intersection(coloursArray, 1);
     direction = (direction + 1) %4;
   }
+  else if ((target_direction == 0 && direction == 1) || (target_direction == 2 && direction == 3)){
+    //left turn needed
+    turn_at_intersection(coloursArray, 0);
+    direction = (direction - 1) %4;
+  }
+  else if (direction != target_direction) {
+    //180 needed
+    turn_at_intersection(coloursArray, 0);
+    turn_at_intersection(coloursArray, 0);
+    direction = target_direction;
+  }
+  //move to target x
 
   //move to target y
   while (robot_y != target_y){
@@ -1105,13 +1105,15 @@ int go_to_target(int* coloursArray, int robot_x, int robot_y, int direction, int
     }
     //move until not on yellow
     BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 15);
+    BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 15);
     colour = wait_colour_change(coloursArray, YELLOWCOLOR);
-    BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
-    BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 1);
+    colour = wait_colour_change(coloursArray, YELLOWCOLOR);
+    BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 0);
 
     //update current position
     robot_y += movement_direction;
   }
+  //we should now be at our target location
   //we should now be at our target location
   return(1);  
 }
@@ -1440,39 +1442,7 @@ void calibrate_sensor(void)
 
   fclose(file);
 
-  /************************** check accuracy of data on each colour **************************/
-
   reading_colour_data(coloursArray);
-
-  remove(COLOUR_PROBABILITIES_FILE);
-  file = fopen(COLOUR_PROBABILITIES_FILE, "a");
-
-  for (colour=BLACKCOLOR; colour<=WHITECOLOR; colour++)
-  {
-    fprintf(stderr, "\n Checking accuracy of getting colour: %d\n", colour);
-
-    // testing colour classification
-    for (i=0; i<READS_PER_PROBABILITY; i++)
-    {
-      fprintf(stderr, "Round %d/%d\n", i+1, (int)READS_PER_PROBABILITY);
-      wait_ready_to_scan();
-      
-      colourFound = detect_and_classify_colour(coloursArray);
-
-      fprintf(stderr, "Colour Expected: %d Actual: %d\n", colour, colourFound);
-
-      correct += (double)(colour == colourFound);
-    }
-
-    // the accuracy of colour classification
-    correct = correct/READS_PER_PROBABILITY;
-    if (correct > 1) correct = 1.0;
-
-    fprintf(stderr, "Colour %d %.2f\n", colour, correct);
-    fprintf(file, "Colour %d %.2f\n", colour, correct);
-  } 
-
-  fclose(file);
 
   /************************** calibrate gyro sensor **************************/
 
@@ -1775,9 +1745,9 @@ unsigned char *readPPMimage(const char *filename, int *rx, int *ry)
 
 void pid_straight_init(PIDController *pid) {
 /* Clear controller variables */
- pid->Kp = 0.3;
- pid->Ki = 0.05;
- pid->Kd = 0.2;
+ pid->Kp = 0.5;
+ pid->Ki = 0.1;
+ pid->Kd = 0.3;
 
  pid->limMin = -80.0;
  pid->limMax = 80.0;
@@ -1824,13 +1794,12 @@ double pid_controller_update(PIDController *pid, int error, int measurement) {
  for (int i=0; i<pid->arr_size; i++) {
   if (pid->prevErrorArr[i] == 0) {
    pid->prevErrorArr[i] = error;
+   break;
   }
-  else {
-   for(int j=1;j<pid->arr_size;j++) {
-    pid->prevErrorArr[j-1] = pid->prevErrorArr[j];
-   }
-   pid->prevErrorArr[pid->arr_size-1] = error;
+  for(int j=1;j<pid->arr_size;j++) {
+  pid->prevErrorArr[j-1] = pid->prevErrorArr[j];
   }
+  pid->prevErrorArr[pid->arr_size-1] = error;
  }
  pid->prevMeasurement = measurement;
 

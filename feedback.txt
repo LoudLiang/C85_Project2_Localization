@@ -10,7 +10,7 @@ project goal is also perfectly tailored for localization.
 -------------------------------------------------------------------------
 2) Dealing with real-world sensors
 Yes. The sensors are very useful and common in real-world robotics, and they
-have the noisy characteristics that we need to deal with, which is also 
+have the noisy characteristics that we need to deal with :(, which is also 
 similar to the situation we might encounter in practice. However, it may be
 a bit difference, since in real-world situation we might have more choices
 and/or methods to work with various sensors and tackle the noise problem, 
@@ -24,6 +24,10 @@ motions also makes us understand PID controllers better.
 
 -------------------------------------------------------------------------
 4) Using probabilities to keep track of belief about a robot's position
+
+Yes. Working on the localization algorithm helped re-enforce the 
+lessons in the notes and lecture, and showed why each step is 
+important.
 
 -------------------------------------------------------------------------
 5) Managing uncertainty (e.g. in the quality of sensor readings, or accuracy of
@@ -39,5 +43,14 @@ solve the problems.
 for a more complex robot, working in a real world environment?
 (please explain your answer)
 
+Somewhat. Histgram localization is something that we've grasped through the project
+but with real world environments, there's much more noise and uncertainty that it 
+may be too much. Also because it's the real world, I'm assuming things can't perfectly
+be separated into boxes and we would need particle filter localization, which we hadn't
+touched in the project.
+
 -------------------------------------------------------------------------
 7) Any other comments regarding your experience with this project?
+
+The mere thought of carrying lego parts that are incredibly expensive has made
+me very afraid of walking across the street with it. ~ Vivian.

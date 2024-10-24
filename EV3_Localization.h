@@ -111,10 +111,8 @@ typedef struct {
 */
 
 #define COLOUR_DATA_FILE "colour_data.txt"
-#define COLOUR_PROBABILITIES_FILE "colour_probabilities.txt"
 #define DATA_PTS_PER_COLOUR 10
 #define READS_PER_DATA_PT 100
-#define READS_PER_PROBABILITY 10.0
 
 void wait_ready_to_scan(void);
 int wait_colour_change(int* coloursArray, int initialColour);
