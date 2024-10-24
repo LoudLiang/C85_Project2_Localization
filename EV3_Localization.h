@@ -104,7 +104,7 @@ typedef struct {
 #define MOTOR_GHOST  MOTOR_C
 #define COLOUR_PORT  PORT_1
 #define GYRO_PORT    PORT_2
-#define ULTRASONIC_PORT PORT_3
+#define ULTRASONIC_PORT PORT_4
 
 /*
   Other Constants
@@ -118,6 +118,7 @@ typedef struct {
 
 void wait_ready_to_scan(void);
 int wait_colour_change(int* coloursArray, int initialColour);
+int wait_until_get_colours(int* coloursArray, int wantedColours[], int numColours);
 int wait_colour_consistent(int* coloursArray);
 int wait_turn_angle(int turn_angle);
 
@@ -139,7 +140,6 @@ void calibrate_sensor(void);
 unsigned char *readPPMimage(const char *filename, int *rx, int*ry);
 void pid_straight_init(PIDController *pid);
 double pid_controller_update(PIDController *pid, int error, int measurement);
-void rotate_gyro_to_centre(void);
 
 void align_street(int *colorArr);
 void normalize_beliefs(void);
