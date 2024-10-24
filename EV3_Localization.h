@@ -130,8 +130,8 @@ void scan_colours(int* coloursArray, int coloursDetected[3]);
 
 int parse_map(unsigned char *map_img, int rx, int ry);
 int robot_localization(int *coloursArray, int *robot_x, int *robot_y, int *direction);
-int go_to_target(int robot_x, int robot_y, int direction, int target_x, int target_y);
 int find_street(int* coloursArray);
+int go_to_target(int* coloursArray, int robot_x, int robot_y, int direction, int target_x, int target_y);
 int drive_along_street(int *colorArr);
 int scan_intersection(int* coloursArrary, int *tl, int *tr, int *br, int *bl);
 int turn_at_intersection(int* coloursArray, int turn_direction);
@@ -140,5 +140,13 @@ unsigned char *readPPMimage(const char *filename, int *rx, int*ry);
 void pid_straight_init(PIDController *pid);
 double pid_controller_update(PIDController *pid, int error, int measurement);
 void rotate_gyro_to_centre(void);
+
 void align_street(int *colorArr);
+void normalize_beliefs(void);
+void print_beliefs(void);
+void test_localization(void);
+void update_beliefs(int tl, int tr, int br, int bl);
+void update_facing_beliefs(int colour, int position);
+void rotate_beliefs(int direction);
+int is_localized(int *x_pos, int *y_pos, int *direction);
 #endif

@@ -233,7 +233,8 @@ int main(int argc, char *argv[])
   * ****************************************************************************************************************/
  
   int coloursArray[6*3*DATA_PTS_PER_COLOUR];
-  reading_colour_data(coloursArray);
+  //this line kept giving seg faults, had to comment it out for now
+  //reading_colour_data(coloursArray);
  
  // Your code for reading any calibration information should not go below this line //
  
@@ -247,6 +248,22 @@ int main(int argc, char *argv[])
  if (parse_map(map_image, rx, ry)==0)
  { 
   fprintf(stderr,"Unable to parse input image map. Make sure the image is properly formatted\n");
+  free(map_image);
+  exit(1);
+ }
+
+ //alternate mode for testing localization without the bot
+ //TODO: REMOVE THIS WHEN DONE
+ if (dest_x==-2&&dest_y==-2){
+  for (int j=0; j<sy; j++)
+    for (int i=0; i<sx; i++)
+    {
+      beliefs[i+(j*sx)][0]=1.0/(double)(sx*sy*4);
+      beliefs[i+(j*sx)][1]=1.0/(double)(sx*sy*4);
+      beliefs[i+(j*sx)][2]=1.0/(double)(sx*sy*4);
+      beliefs[i+(j*sx)][3]=1.0/(double)(sx*sy*4);
+    }
+  test_localization();
   free(map_image);
   exit(1);
  }
@@ -862,49 +879,53 @@ int robot_localization(int *coloursArray, int *robot_x, int *robot_y, int *direc
    ***********************************************************************************************************************/
 
   int colour, tl, tr, br, bl;
+  int i = 0;
+  int turn_direction;
 
   // center the bot onto a street
   find_street(coloursArray);
 
-  // drive along the street until you hit an intersection
-  colour = drive_along_street(coloursArray);
+  //to avoid an infinite loop, attempt localization a few times
+  //and assume failure if not localized yet
+  while (i < 10){
+    // drive along the street until you hit an intersection
+    colour = drive_along_street(coloursArray);
 
-  // if at the border, turn around 
-  if (colour == REDCOLOR)
-  {
-    turn(coloursArray, 180, 0);
-  }
+    // if at the border, turn around and drive back to intersection
+    if (colour == REDCOLOR)
+    {
+      turn(coloursArray, 180);
+      colour = drive_along_street(coloursArray);
+    }
 
-  // not at the border, scan intersection
-  else
-  {
+    //now at intersection, scan and update beliefs
     scan_intersection(coloursArray, &tl, &tr, &br, &bl);
+    update_beliefs(tl, tr, br, bl);
 
-    // make a decision 
-    
-    // go straight (do nothing) OR turn
-    turn_at_intersection(coloursArray, 1);
+    //to ensure some good map coverage, go straight, then right, then left
+    if (i % 3 == 1){
+      turn_at_intersection(coloursArray, 1);
+      rotate_beliefs(1);
+    }
+    else if (i % 3 == 2){
+      turn_at_intersection(coloursArray, 0);
+      rotate_beliefs(0);
+    }
+      
+    // if know where we are, return 1
+    if (is_localized(robot_x, robot_y, direction))
+    {
+      return(1);
+    }
+    //else continue localization
+    i++;
   }
-
-  // update probabilities
-
-  // Return an invalid location/direction and notify that localization was unsuccessful (you will delete this and replace it
-  // with your code).  
-  *(robot_x)=-1;
-  *(robot_y)=-1;
-  *(direction)=-1;
-
-  // if know where we are, return 1
-  if (1)
-  {
-    return(1);
-  }
-
-  // else continue localization
-  return robot_localization(coloursArray, robot_x, robot_y, direction);
+  //we made it out of the while loop without localizing,
+  //so localization failure
+  return(0);
 }
 
-int go_to_target(int robot_x, int robot_y, int direction, int target_x, int target_y)
+int go_to_target(int* coloursArray, int robot_x, int robot_y, int direction, int target_x, int target_y)
 {
  /*
   * This function is called once localization has been successful, it performs the actions required to take the robot
@@ -944,7 +965,81 @@ int go_to_target(int robot_x, int robot_y, int direction, int target_x, int targ
   /************************************************************************************************************************
    *   TO DO  -   Complete this function
    ***********************************************************************************************************************/
-  return(0);  
+  int target_direction;
+  int movement_direction;
+  int colour;
+
+  //find which way the bot should face to move closer to target x
+  //by moving forward
+  if (target_x > robot_x){
+    target_direction = 3;
+    movement_direction = 1;
+  }
+  else if (target_x < robot_x){
+    target_direction = 1;
+    movement_direction = -1;
+  }
+
+  //rotate to target direction
+  while (target_direction != direction){
+    turn_at_intersection(coloursArray, 1);
+    direction = (direction + 1) %4;
+  }
+
+  //move to target x
+  while (robot_x != target_x){
+    colour = drive_along_street(coloursArray);
+    if (colour == REDCOLOR){
+      //we hit a boarder, which should not happen
+      //so we're lost, return failure
+      return(0);
+    }
+
+    //move until not on yellow
+    BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 15);
+    colour = wait_colour_change(coloursArray, YELLOWCOLOR);
+    BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
+    BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 1);
+
+    //update current position
+    robot_x += movement_direction;
+  }
+
+  //same but for y
+  if (target_y > robot_y){
+    target_direction = 4;
+    movement_direction = 1;
+  }
+  else if (target_y < robot_y){
+    target_direction = 0;
+    movement_direction = -1;
+  }
+
+  //rotate to target direction
+  while (target_direction != direction){
+    turn_at_intersection(coloursArray, 1);
+    direction = (direction + 1) %4;
+  }
+
+  //move to target y
+  while (robot_y != target_y){
+    colour = drive_along_street(coloursArray);
+    if (colour == REDCOLOR){
+      //we hit a boarder, which should not happen
+      //so we're lost, return failure
+      return(0);
+    }
+    //move until not on yellow
+    BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 15);
+    colour = wait_colour_change(coloursArray, YELLOWCOLOR);
+    BT_motor_port_start(MOTOR_LEFT| MOTOR_RIGHT, 0);
+    BT_motor_port_stop(MOTOR_LEFT | MOTOR_RIGHT, 1);
+
+    //update current position
+    robot_y += movement_direction;
+  }
+  //we should now be at our target location
+  return(1);  
 }
 
 /*
@@ -1686,4 +1781,307 @@ void rotate_gyro_to_centre() {
 
   BT_motor_port_stop(MOTOR_MIDDLE, 0);
  }
+}
+
+/*
+  Makes it so the sum of all beliefs is 1
+*/
+void normalize_beliefs()
+{
+  int i;
+  int j;
+  int k;
+  double sum = 0;
+
+  //find current sum of beliefs
+  for (i = 0; i < sy; i++){
+    for (j = 0; j < sx; j++){
+      for (k = 0; k < 4; k++) {
+        sum += beliefs[j+i*sx][k];
+      }
+    }
+  }
+
+  //divide each belief by the sum to normalize
+  for (i = 0; i < sy; i++){
+    for (j = 0; j < sx; j++){
+      for (k = 0; k < 4; k++) {
+        beliefs[j+i*sx][k] = beliefs[j+i*sx][k]/sum;
+      }
+    }
+  }
+  printf("Sum: %f\n", sum);
+}
+
+/*
+  Prints beliefs to be viewed for testing
+*/
+void print_beliefs()
+{
+  int i;
+  int j;
+  int k;
+
+  printf("Current Beliefs (UP:RIGHT:DOWN:LEFT)\n");
+  for (i = 0; i < sy; i++){
+    for (j = 0; j < sx; j++){
+      for (k = 0; k < 4; k++) {
+        printf("%f:", beliefs[j+i*sx][k]);
+      }
+      printf("   ");
+    }
+    printf("\n\n");
+  }
+}
+
+/*
+  Takes input from the user to simulate the bot moving
+  and scanner intersections, then uses that data to attempt to
+  localize
+*/
+void test_localization()
+/*
+  BLACKCOLOR   = 1,
+  BLUECOLOR    = 2,
+  GREENCOLOR   = 3,
+  YELLOWCOLOR  = 4,
+  REDCOLOR     = 5,
+  WHITECOLOR   = 6
+*/
+{
+  int tl, tr, bl, br;
+  int quit;
+  int angle;
+  int x_pos;
+  int y_pos;
+  int direction;
+
+  printf("\nThis is a simulation to test the localization algorithm.\n");
+  printf("Looking at the map, choose a space for the bot to start and keep track of it\n");
+  printf("The bot will assume that when it hits an edge, it backs up and returns to the intersection,\n");
+  printf("There is no need to input the 180 rotation\n");
+  while (quit != 1){
+    printf("Turn direction? (0 for left, 1 for right, -1 for straight)\n");
+    scanf("%d", &angle);
+    if (angle != -1){
+      rotate_beliefs(angle);
+    }
+    printf("The bot now drives straight along the road to an intersection\n");
+    printf("What colour is to the top left?:\n");
+    scanf("%d", &tl);
+    printf("Top right?:\n");
+    scanf("%d", &tr);
+    printf("Bottom right?:\n");
+    scanf("%d", &br);
+    printf("Bottom left?:\n");
+    scanf("%d", &bl);
+    update_beliefs(tl, tr, br, bl);
+    print_beliefs();
+    if (is_localized(&x_pos, &y_pos, &direction) == 1){
+      printf("Localized! We are at x=%d, y=%d, facing %d\n", x_pos, y_pos, direction);
+      break;
+    }
+    printf("Quit? (1/0):\n");
+    scanf("%d", &quit);
+  }
+  //TODO: add something to see when we are fairly sure the bot is at a specific location
+}
+/*
+  Takes the colours seen at an intesection and updates beliefs
+  with that info
+*/
+void update_beliefs(int tl, int tr, int br, int bl)
+{
+  double beliefs_copy[400][4];
+  //TODO: add some kind of re-scan option for if 
+  //red, yellow of black are read, as building cannot be that colour
+
+  //creating a copy of beliefs to allow for shifting values around
+  for (int j = 0; j < sy; j++){
+    for (int i = 0; i <sx; i++){
+      for (int k = 0; k < 4; k++){
+        beliefs_copy[i+j*sx][k] = beliefs[i+j*sx][k];
+      }
+    }
+  }
+
+  //updates locations after the robot drove straight to
+  //get to an intesection
+  for (int j = 0; j < sy; j++){
+    for (int i = 0; i <sx; i++){
+      //if we are on the bottom of the map
+      if (j == sy - 1){
+        /*
+        if movement works, there is no chance we can
+        be on the bottom of the map, facing up
+        so we make it some very small number
+        */
+        beliefs[i+j*sx][0] = 0.00001;
+      }
+      else{
+        //if we are not on the bottom edge of the map,
+        //the chance of us being here facing down,
+        //is the chance of us being below this spot
+        //facing up
+        beliefs[i+j*sx][0] = beliefs_copy[i+(j+1)*sx][0];
+      }
+      
+      //similar logic as above, but for other facing directions
+      //left edge
+      if (i==0){
+        beliefs[i+j*sx][1] = 0.00001;
+      }
+      else{
+        beliefs[i+j*sx][1] = beliefs_copy[(i-1)+j*sx][1];
+      }
+      //top
+      if (j == 0){
+        beliefs[i+j*sx][2] = 0.00001;
+      }
+      else{
+        beliefs[i+j*sx][2] = beliefs_copy[i+(j-1)*sx][2];
+      }
+      //right edge
+      if (i == sx - 1){
+        beliefs[i+j*sx][3] = 0.00001;
+      }
+      else{
+        beliefs[i+j*sx][3] = beliefs_copy[(i+1)+j*sx][3];
+      }
+
+      //going back and overwriting in some more complicated scenarios
+      if (j==sy-1){
+        /*
+          for the odds of us being on the bottom of the map, facing down,
+          we are either here after moving down from the space above, or
+          from already being here, moving forward, hitting the red, and reversing
+          so we take half of both those probabilities and add
+        */
+        beliefs[i+j*sx][2] = beliefs_copy[i+(j-1)*sx][2]*0.5 + beliefs_copy[i+j*sx][2]*0.5;
+      }
+      //similare logic for other edge cases
+      //left edge
+      if (i==0){
+        beliefs[i+j*sx][3] = beliefs_copy[(i+1)+j*sx][3]*0.5 + beliefs_copy[i+j*sx][3]*0.5;
+      }
+      //top
+      if (j == 0){
+        beliefs[i+j*sx][0] = beliefs_copy[i+(j+1)*sx][0]*0.5 + beliefs_copy[i+j*sx][0]*0.5;
+      }
+      //right edge
+      if (i == sx - 1){
+        beliefs[i+j*sx][1] = beliefs_copy[(i-1)+j*sx][1]*0.5 + beliefs_copy[i+j*sx][1]*0.5;
+      }
+    }
+  }
+
+  normalize_beliefs();
+
+  //updates based on colour of intersections
+  update_facing_beliefs(tl, 0);
+  update_facing_beliefs(tr, 3);
+  update_facing_beliefs(br, 2);
+  update_facing_beliefs(bl, 1);
+}
+
+/*
+  Updades beliefs given that the robot scans colour at position
+  where for position:
+
+  0 = TOP LEFT
+  1 = BOTTOM LEFT
+  2 = BOTTOM RIGHT
+  3 = TOP RIGHT
+*/
+void update_facing_beliefs(int colour, int position){
+  //TODO: Replace error with error values for each colour
+  double error = 0.85;
+  int direction;  //the direction the robot would be facing in order to scan colour at position
+
+  for (int j = 0; j < sy; j++){
+    for (int i = 0; i <sx; i++){
+      for (int building = 0; building < 4; building++){
+        direction = (building + position) % 4;
+        if (map[i + j*sx][building] == colour){
+          //the scanned colour matches the building so multiply
+          //belief by the chance the colour is correct
+          beliefs[i + j*sx][direction] *= error;
+        }
+        else {
+          //the scanned colour does not match the building
+          //so multiply the belief by the chance the colour is wrong
+          beliefs[i + j*sx][direction] *= (1-error);
+        }
+      }
+    }
+  }
+  //make sure the sum of all beliefs remains 1
+  normalize_beliefs();
+}
+
+/*
+  updates beliefs to reflect a 90 degree rotation
+  in direction, where -1 is left and 1 is right
+*/
+void rotate_beliefs(int direction){
+  double temp;  //used to temporarily store a believe value while it's being moved around
+
+  if (direction < 0){
+    return;
+  }
+
+  if (direction == 0){
+    for (int j = 0; j < sy; j++){
+      for (int i = 0; i <sx; i++){
+        //shift all directional beliefs one to the left
+        temp = beliefs[i+j*sx][3];
+        for (int k = 3; k > 0; k--){
+          beliefs[i+j*sx][k] = beliefs[i+j*sx][k-1];
+        }
+        beliefs[i+j*sx][0] = temp;
+      }
+    }
+  }
+  else{
+    for (int j = 0; j < sy; j++){
+      for (int i = 0; i <sx; i++){
+        //shift all directional beliefs one to the right
+        temp = beliefs[i+j*sx][0];
+        for (int k = 0; k < 3; k++){
+          beliefs[i+j*sx][k] = beliefs[i+j*sx][k+1];
+        }
+        beliefs[i+j*sx][3] = temp;
+      }
+    }
+  }
+  print_beliefs();
+  
+}
+
+/*
+  Checks beliefs and fills x_pos, y_pos and direction with bots most likely
+  position. Returns 1 if this position is reliable enough to take as our 
+  true position, and 0 otherwise
+*/
+int is_localized(int *x_pos, int *y_pos, int *direction){
+  double highest = 0;
+  double second_highest = 0;
+
+  for (int j = 0; j < sy; j++){
+    for (int i = 0; i <sx; i++){
+      for (int k = 0; k < 4; k++){
+        if (beliefs[i+j*sx][k] > highest){
+          second_highest = highest;
+          highest = beliefs[i+j*sx][k];
+          *x_pos = i;
+          *y_pos = j;
+          *direction = k;
+        }
+        else if (beliefs[i+j*sx][k] > second_highest){
+          second_highest = beliefs[i+j*sx][k];
+        }
+      }
+    }
+  }
+  return highest > (second_highest + 0.6); 
 }
