@@ -336,7 +336,7 @@ int main(int argc, char *argv[])
 
  // HERE - write code to call robot_localization() and go_to_target() as needed, any additional logic required to get the
  //        robot to complete its task should be here.
- int tl, tr, br, bl;
+ int tl, tr, br, bl, robot_x, robot_y, direction;
  int coloursDetected[3];
 
  pid_straight = (PIDController *)malloc(sizeof(PIDController));
@@ -348,11 +348,12 @@ int main(int argc, char *argv[])
  }
 
  pid_straight_init(pid_straight);
+ robot_localization(coloursArray, &robot_x, &robot_y, &direction);
   // find_street(coloursArray);
 //  scan_colours(coloursArray, coloursDetected);
 //  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
- drive_along_street(coloursArray);
- scan_intersection(coloursArray, &tl, &tr, &br, &bl);
+//  drive_along_street(coloursArray);
+//  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
 //  drive_along_street(coloursArray);
 //  scan_intersection(coloursArray, &tl, &tr, &br, &bl);
 //  turn_at_intersection(coloursArray, 1);
@@ -462,20 +463,21 @@ int find_street(int* coloursArray)
 
 void align_street(int *colorArr) 
 {
- int angle, rate, totalAdjustment = 30, adjustmentLimit = 50;
+ int angle, rate, totalAdjustment = 30, adjustmentLimit = 15, motorspeed = 25;
  double drive_speed = 12.0;
  fprintf(stderr, "Aligning to street: check color\n");
- int color = wait_colour_consistent(colorArr);
+ int color = detect_and_classify_colour(colorArr);
 
  int black_steps = 0;
  while(1) {
   while (color != BLACKCOLOR && color != YELLOWCOLOR) {
     if (color == REDCOLOR) {
       fprintf(stderr, "HIT RED.\n");
-      color = turn(colorArr, 180, 0);
-      BT_turn(MOTOR_LEFT, 0, MOTOR_RIGHT, 0);
+      BT_drive(MOTOR_LEFT, MOTOR_RIGHT, -15);
+      wait_until_get_colours(colorArr, roadColours+1, 1);
+      BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 0);
     }
-    color = wait_colour_consistent(colorArr);
+    color = detect_and_classify_colour(colorArr);
     if (color == BLACKCOLOR || color == YELLOWCOLOR)
     {
       continue;
@@ -494,16 +496,16 @@ void align_street(int *colorArr)
     // if road on the right, move right wheel only
     if (last_turn_direction == 1)
     {
-      BT_turn(MOTOR_LEFT, 0, MOTOR_RIGHT, 20);
+      BT_turn(MOTOR_LEFT, 0, MOTOR_RIGHT, motorspeed);
     }
     
     // if road on the left, move left wheel only
     else
     {
-      BT_turn(MOTOR_LEFT, 20, MOTOR_RIGHT, 0);
+      BT_turn(MOTOR_LEFT, motorspeed, MOTOR_RIGHT, 0);
     }
-    color = wait_colour_consistent(colorArr);
-    BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 0);
+    color = detect_and_classify_colour(colorArr);
+    // BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 0);
 
     BT_read_gyro(GYRO_PORT, 0, &angle, &rate);
     fprintf(stderr, "adjustment %d angle %d\n", totalAdjustment, abs(angle));
@@ -514,12 +516,11 @@ void align_street(int *colorArr)
       totalAdjustment = 0;
       last_turn_direction = -1 * last_turn_direction;
       adjustmentLimit = 2*adjustmentLimit;
+      fprintf(stderr, "new adjustment limit %d\n", adjustmentLimit);
     }
 
-    // color = turn(colorArr, -40 * last_turn_direction, 1);
     BT_drive(MOTOR_LEFT, MOTOR_RIGHT, drive_speed);
-    color = wait_colour_consistent(colorArr);
-    BT_turn(MOTOR_LEFT, 0, MOTOR_RIGHT, 0);
+    color = detect_and_classify_colour(colorArr);
     fprintf(stderr, "align colour %d\n", color);
     if (color == BLACKCOLOR || color == YELLOWCOLOR) {
       black_steps++;
@@ -527,7 +528,7 @@ void align_street(int *colorArr)
   }
   black_steps++;
   fprintf(stderr, "bbbbbbbblack steps: %d\n", black_steps);
-  if (black_steps >= 3) {
+  if (black_steps >= 5) {
     // aligned
     fprintf(stderr, "Aligned!!!!\n");
     BT_turn(MOTOR_LEFT, 0, MOTOR_RIGHT, 0);
@@ -786,8 +787,8 @@ int turn(int* coloursArray, int turn_angle, int checkRightAway)
   BT_read_gyro(GYRO_PORT, 1, &angle, &rate);
 
   // turning clockwise
-  lpow = 20;
-  rpow = -20;
+  lpow = 30;
+  rpow = -30;
   leeway = abs(turn_angle) < 10 ? 0 : 3;
 
   // turning counter-clockwise
@@ -940,7 +941,7 @@ int robot_localization(int *coloursArray, int *robot_x, int *robot_y, int *direc
 
   int colour, tl, tr, br, bl;
   int i = 0;
-  int turn_direction;
+  int hit_red;
 
   // center the bot onto a street
   find_street(coloursArray);
@@ -949,6 +950,7 @@ int robot_localization(int *coloursArray, int *robot_x, int *robot_y, int *direc
   //and assume failure if not localized yet
   while (i < 10){
     // drive along the street until you hit an intersection
+    hit_red = 0;
     colour = drive_along_street(coloursArray);
 
     // if at the border, turn around and drive back to intersection
@@ -958,14 +960,20 @@ int robot_localization(int *coloursArray, int *robot_x, int *robot_y, int *direc
       BT_drive(MOTOR_LEFT, MOTOR_RIGHT, -15);
       colour = wait_until_get_colours(coloursArray, roadColours+1, 1);
       BT_drive(MOTOR_LEFT, MOTOR_RIGHT, 0);
+      hit_red = 1;
     }
 
     //now at intersection, scan and update beliefs
     scan_intersection(coloursArray, &tl, &tr, &br, &bl);
     update_beliefs(tl, tr, br, bl);
 
+    //if we hit red always rotate right to hopefully not hit red multiple times
+    if (hit_red == 1){
+      turn_at_intersection(coloursArray, 1);
+      rotate_beliefs(1);
+    }
     //to ensure some good map coverage, go straight, then right, then left
-    if (i % 3 == 1){
+    else if (i % 3 == 1){
       turn_at_intersection(coloursArray, 1);
       rotate_beliefs(1);
     }
@@ -977,6 +985,8 @@ int robot_localization(int *coloursArray, int *robot_x, int *robot_y, int *direc
     // if know where we are, return 1
     if (is_localized(robot_x, robot_y, direction))
     {
+      printf("Localized! We are at x=%d, y=%d, facing %d\n", *robot_x, *robot_y, *direction);
+      BT_play_tone_sequence(tone_data[0]);
       return(1);
     }
     //else continue localization
@@ -1903,7 +1913,6 @@ void test_localization()
   printf("\nThis is a simulation to test the localization algorithm.\n");
   printf("Looking at the map, choose a space for the bot to start and keep track of it\n");
   printf("The bot will assume that when it hits an edge, it backs up and returns to the intersection,\n");
-  printf("There is no need to input the 180 rotation\n");
   while (quit != 1){
     printf("Turn direction? (0 for left, 1 for right, -1 for straight)\n");
     scanf("%d", &angle);
@@ -2001,20 +2010,20 @@ void update_beliefs(int tl, int tr, int br, int bl)
           from already being here, moving forward, hitting the red, and reversing
           so we take half of both those probabilities and add
         */
-        beliefs[i+j*sx][2] = beliefs_copy[i+(j-1)*sx][2]*0.5 + beliefs_copy[i+j*sx][2]*0.5;
+        beliefs[i+j*sx][2] = beliefs_copy[i+(j-1)*sx][2] + beliefs_copy[i+j*sx][2];
       }
       //similare logic for other edge cases
       //left edge
       if (i==0){
-        beliefs[i+j*sx][3] = beliefs_copy[(i+1)+j*sx][3]*0.5 + beliefs_copy[i+j*sx][3]*0.5;
+        beliefs[i+j*sx][3] = beliefs_copy[(i+1)+j*sx][3] + beliefs_copy[i+j*sx][3];
       }
       //top
       if (j == 0){
-        beliefs[i+j*sx][0] = beliefs_copy[i+(j+1)*sx][0]*0.5 + beliefs_copy[i+j*sx][0]*0.5;
+        beliefs[i+j*sx][0] = beliefs_copy[i+(j+1)*sx][0] + beliefs_copy[i+j*sx][0];
       }
       //right edge
       if (i == sx - 1){
-        beliefs[i+j*sx][1] = beliefs_copy[(i-1)+j*sx][1]*0.5 + beliefs_copy[i+j*sx][1]*0.5;
+        beliefs[i+j*sx][1] = beliefs_copy[(i-1)+j*sx][1] + beliefs_copy[i+j*sx][1];
       }
     }
   }
