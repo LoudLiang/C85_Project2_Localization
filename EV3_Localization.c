@@ -348,18 +348,12 @@ int main(int argc, char *argv[])
 
  pid_straight_init(pid_straight);
 
-  int detected[3];
-//  scan_colours(coloursArray, detected);
- drive_along_street(coloursArray);
-//  drive_along_street(coloursArray);
-//  foundTarget = go_to_target(coloursArray, 1, 2, 0, 0, 0);
-
-//  while (foundTarget == 0 && tries < 3)
-//  {
-//   robot_localization(coloursArray, &robot_x, &robot_y, &direction);
-//   foundTarget = go_to_target(coloursArray, robot_x, robot_y, direction, dest_x, dest_y);
-//   tries++;
-//  }
+ while (foundTarget == 0 && tries < 3)
+ {
+  if (!robot_localization(coloursArray, &robot_x, &robot_y, &direction)) continue;
+  foundTarget = go_to_target(coloursArray, robot_x, robot_y, direction, dest_x, dest_y);
+  tries++;
+ }
 
  free(pid_straight);
 
